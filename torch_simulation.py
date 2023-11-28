@@ -15,7 +15,7 @@ from tqdm import tqdm
 from torch_model import PCModel  # GPU model
 from weights_nour_eddine_2023 import get_weights
 
-# Make sure to set this to where you've downloaded Samual Eddine Nour's data package to.
+# Make sure to set this to where you've downloaded Samer's data package to.
 data_path = "./helper_txt_files"
 
 # You can play with these to run more or fewer simulation steps
