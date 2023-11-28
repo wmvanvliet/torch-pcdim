@@ -1,3 +1,11 @@
+"""A predictive coding model of the N400.
+
+This is the model proposed by:
+
+Nour Eddine, Samer, Trevor Brothers, Lin Wang, Michael Spratling, and Gina R. Kuperberg.
+"A Predictive Coding Model of the N400". bioRxiv, 11 April 2023.
+https://doi.org/10.1101/2023.04.10.536279.
+"""
 from collections import OrderedDict
 
 import numpy as np

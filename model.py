@@ -2,7 +2,7 @@
 
 This is the model proposed by:
 
-Eddine, Samer Nour, Trevor Brothers, Lin Wang, Michael Spratling, and Gina R. Kuperberg.
+Nour Eddine, Samer, Trevor Brothers, Lin Wang, Michael Spratling, and Gina R. Kuperberg.
 "A Predictive Coding Model of the N400". bioRxiv, 11 April 2023.
 https://doi.org/10.1101/2023.04.10.536279.
 """
