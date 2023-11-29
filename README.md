@@ -12,7 +12,7 @@ The code has been tested against Samer's original implementation.
 The CPU version (`model.py`) reproduces the values exactly.
 
 In addition, there is a new PyTorch GPU implementation of the model in the form of a stack of PyTorch Modules.
-This does not reproduce the original values exactly, as it skips some of the particularities of the original code in favor of consistancy.
+This does not reproduce the original values exactly, as it skips some of the particularities of the original code in favor of consistency.
 
 Installation and Running
 ------------------------
