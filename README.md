@@ -7,12 +7,8 @@ Nour Eddine, Samer, Trevor Brothers, Lin Wang, Michael Spratling, and Gina R. Ku
 "A Predictive Coding Model of the N400". bioRxiv, 11 April 2023.
 https://doi.org/10.1101/2023.04.10.536279.
 
-
-The code has been tested against Samer's original implementation.
-The CPU version (`model.py`) reproduces the values exactly.
-
+The code has been tested against Samer's original implementation and approximates it very closely.
 In addition, there is a new PyTorch GPU implementation of the model in the form of a stack of PyTorch Modules.
-This does not reproduce the original values exactly, as it skips some of the particularities of the original code in favor of consistency.
 
 Installation and Running
 ------------------------
