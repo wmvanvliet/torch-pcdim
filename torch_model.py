@@ -12,8 +12,8 @@ import numpy as np
 import torch
 from torch import nn
 
-from torch_predcoding import InputLayer, OutputLayer, PCLayer
-from weights_nour_eddine_2023 import get_orth_repr
+from torch_predcoding import InputLayer, MiddleLayer, OutputLayer
+from weights_nour_eddine_2023 import get_lex_repr, get_orth_repr
 
 # These constants control the sensitivity of the model. Currently set to the values
 # given in Nour Eddine et al. (2023).
@@ -26,6 +26,9 @@ class PCModel(nn.Module):
 
     Parameters
     ----------
+    weights : Weights
+        A dataclass containing information about the weights, as obtained by the
+        ``get_weights()`` function. Make sure to load them with ``pre_normalize=False``.
     batch_size : int
         Number of words we compute per batch.
     """
@@ -52,7 +55,7 @@ class PCModel(nn.Module):
                     batch_size=batch_size,
                     bu_weights=torch.as_tensor(self.weights.W_orth_lex).float(),
                 ),
-                lex=PCLayer(
+                lex=MiddleLayer(
                     n_units=len(self.lex_units),
                     n_in=len(self.orth_units),
                     n_out=len(self.sem_units),
@@ -60,7 +63,7 @@ class PCModel(nn.Module):
                     bu_weights=torch.as_tensor(self.weights.W_lex_sem).float(),
                     td_weights=torch.as_tensor(self.weights.V_lex_orth).float(),
                 ),
-                sem=PCLayer(
+                sem=MiddleLayer(
                     n_units=len(self.sem_units),
                     n_in=len(self.lex_units),
                     n_out=len(self.ctx_units),
@@ -77,30 +80,76 @@ class PCModel(nn.Module):
             )
         )
 
-    def __call__(self, input_batch=None):
+        # Apply frequency scaling to the top-down weights
+        self.layers.lex.td_weights.set_(
+            (self.layers.lex.td_weights + torch.tensor(weights.freq[None, :])).float()
+            * (self.layers.lex.td_weights > 0)
+        )
+        self.layers.sem.td_weights.set_(
+            (self.layers.sem.td_weights + torch.tensor(weights.freq[:, None])).float()
+            * (self.layers.sem.td_weights > 0)
+        )
+        self.layers.ctx.td_weights.set_(
+            (self.layers.ctx.td_weights + torch.tensor(weights.freq[None, :])).float()
+            * (self.layers.ctx.td_weights > 0)
+        )
+
+    def __call__(self, clamp_orth=None, clamp_ctx=None, cloze_prob=1.0):
         """Run the simulation on the given input batch for a single step.
+
+        This implementation follows Algorithm 1 presented in the supplementary
+        information of Nour Eddine et al. (2023).
+
+        After calling this, the ``state_*``, ``prederr_*``, ``bias_*``, and ``rec_*``
+        attributes will have been updated. These can be used to probe the new state of
+        the model.
 
         Parameters
         ----------
-        input_batch : list
-            List of words to feed through the model.
-
-        Returns
-        -------
-        output : tensor
-            The output of the model.
+        clamp_orth : list[str] | "zeros" | None
+            A list of words (of length equal to the batch size) to clamp onto the first
+            layers of the model.
+            When ``"zero"``, the input will be all zeros.
+            When ``None``, the input is left unclamped.
+        clamp_ctx : list[str] | None
+            The words to clamp the control (dummy) units to.
+            When ``None``, the control units are left unclamped.
+        cloze_prob : float
+            The cloze probability for the words clamped onto the control units.
         """
-        if input_batch is None:
-            x = torch.zeros_like(self.layers.orth.state)
+        if clamp_orth is not None:
+            if clamp_orth == "zeros":
+                # Clamp zeros onto the orth units.
+                state_orth = torch.zeros_like(self.layers.orth.state).float()
+            else:
+                # Clamp orthograhic input onto the orth units.
+                state_orth = torch.tensor(
+                    np.array([get_orth_repr(word) for word in clamp_orth])
+                ).T.float()
+            state_orth = state_orth.to(self.device)
+            self.layers.orth.clamp(state_orth)
+
+        if clamp_ctx is not None:
+            state_ctx = (
+                torch.tensor(
+                    np.array(
+                        [
+                            get_lex_repr(word, self.lex_units, cloze_prob=cloze_prob)
+                            for word in clamp_ctx
+                        ]
+                    )
+                )
+                .float()
+                .T
+            )
+            state_ctx = state_ctx.to(self.device)
+            self.layers.ctx.clamp(state_ctx)
         else:
-            x = torch.tensor(
-                np.array([get_orth_repr(word) for word in input_batch])
-            ).T.float()
-        x = x.to(self.device)
+            self.layers.ctx.release_clamp()
 
         with torch.no_grad():
             # Forward pass
-            prederr = self.layers[0](x)
+            prederr = self.layers[0]()
             for layer in self.layers[1:-1]:
                 prederr = layer(prederr)
             output = self.layers[-1](prederr)

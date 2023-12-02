@@ -22,4 +22,4 @@ For the CPU model, only `numpy` is required. For the GPU model, you will also ne
 Running the CPU model: `simulation.py`  
 Running the GPU model: `torch_simulation.py`  
 
-This will reproduce Figure 5 of the original paper.
+This will reproduce Figures 5 and 6A of the original paper.

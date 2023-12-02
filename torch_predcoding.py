@@ -11,7 +11,7 @@ import torch
 from torch import nn
 
 
-class PCLayer(nn.Module):
+class MiddleLayer(nn.Module):
     """A predictive-coding layer that is sandwiched between two other layers.
 
     This layer propagates errors onward, and back-propagates reconstructions.
@@ -55,6 +55,8 @@ class PCLayer(nn.Module):
         self.n_in = n_in
         self.n_out = n_out
         self.batch_size = batch_size
+
+        self.clamped = False  # see the clamp() method
 
         self.register_buffer("eps_1", torch.as_tensor(eps_1))
         self.register_buffer("eps_2", torch.as_tensor(eps_2))
@@ -103,21 +105,24 @@ class PCLayer(nn.Module):
         bu_err : tensor (n_out, batch_size)
             The bottom-up error that needs to propagate to the next layer.
         """
-        self.state = torch.maximum(self.eps_2, self.state) * (
-            bu_err + (self.td_normalizer.T * self.td_err)
-        )
-        self.bu_err = self.state / torch.maximum(self.eps_1, self.reconstruction)
+        if not self.clamped:
+            self.state = torch.maximum(self.eps_2, self.state) * (
+                bu_err + (self.td_normalizer.T * self.td_err)
+            )
+        if self.reconstruction is not None:
+            self.bu_err = self.state / torch.maximum(self.eps_1, self.reconstruction)
         self.td_err = self.reconstruction / torch.maximum(self.eps_1, self.state)
         return self.bu_weights @ self.bu_err
 
-    def backward(self, reconstruction):
+    def backward(self, reconstruction=None):
         """Back-propagate the reconstruction.
 
         Parameters
         ----------
-        reconstruction : tensor (n_units, batch_size)
+        reconstruction : tensor (n_units, batch_size) | None
             The reconstruction of the state of the units this layer, computed
-            and then back-propagated by the next layer.
+            and then back-propagated by the next layer. Can be ``None`` to indicate this
+            is the top layer, for which no reconstruction is needed.
 
         Returns
         -------
@@ -127,6 +132,21 @@ class PCLayer(nn.Module):
         """
         self.reconstruction = reconstruction
         return self.td_weights @ self.state
+
+    def clamp(self, state):
+        """Clamp the units to a predefined state.
+
+        Parameters
+        ----------
+        state : tensor (n_units, batch_size)
+            The clamped state of the units.
+        """
+        self.state = state
+        self.clamped = True
+
+    def release_clamp(self):
+        """Release any clamped state from the units."""
+        self.clamped = False
 
 
 class InputLayer(nn.Module):
@@ -156,6 +176,8 @@ class InputLayer(nn.Module):
         self.n_out = n_out
         self.batch_size = batch_size
 
+        self.clamped = False  # see the clamp() method
+
         self.register_buffer(
             "state", (1 / self.n_units) * torch.ones((self.n_units, self.batch_size))
         )
@@ -178,23 +200,31 @@ class InputLayer(nn.Module):
         )
         self.register_buffer("bu_normalizer", bu_normalizer)
 
-    def forward(self, x):
+    def forward(self, x=None):
         """Update state, propagate prediction error forward.
 
         Parameters
         ----------
-        x : tensor (n_units, batch_size)
+        x : tensor (n_units, batch_size) | None
             The input given to the model. This will be the new state of the
-            units in this layer.
+            units in this layer. Set this to ``None`` to indicate there is no input and,
+            unless the units are clamped, the state of the units should be affected only
+            by top-down error.
 
         Returns
         -------
         bu_err : tensor (n_out, batch_size)
             The bottom-up error that needs to propagate to the next layer.
         """
-        self.state = x
+        if not self.clamped:
+            if x is not None:
+                self.state = x
+            else:
+                self.state = torch.maximum(self.eps_2, self.state) * self.td_err
         self.td_err = self.reconstruction / torch.maximum(self.eps_1, self.state)
-        return self.bu_weights @ (x / torch.maximum(self.eps_1, self.reconstruction))
+        return self.bu_weights @ (
+            self.state / torch.maximum(self.eps_1, self.reconstruction)
+        )
 
     def backward(self, reconstruction):
         """Take in a reconstruction for use in the next iteration.
@@ -206,6 +236,21 @@ class InputLayer(nn.Module):
             and then back-propagated by the next layer.
         """
         self.reconstruction = reconstruction
+
+    def clamp(self, state):
+        """Clamp the units to a predefined state.
+
+        Parameters
+        ----------
+        state : tensor (n_units, batch_size)
+            The clamped state of the units.
+        """
+        self.state = state
+        self.clamped = True
+
+    def release_clamp(self):
+        """Release any clamped state from the units."""
+        self.clamped = False
 
 
 class OutputLayer(nn.Module):
@@ -234,6 +279,8 @@ class OutputLayer(nn.Module):
         self.n_units = n_units
         self.batch_size = batch_size
 
+        self.clamped = False  # see the clamp() method
+
         self.register_buffer("eps_2", torch.as_tensor(eps_2))
         self.register_buffer(
             "state", (1 / self.n_units) * torch.ones((self.n_units, self.batch_size))
@@ -244,7 +291,7 @@ class OutputLayer(nn.Module):
             td_weights = torch.randn(n_in, n_units)
             td_weights = torch.maximum(td_weights, 0)
         assert td_weights.shape == (n_in, n_units)
-        td_normalizer = 1 / (torch.sum(td_weights, dim=0, keepdim=True) + 1)
+        td_normalizer = 1 / (torch.sum(td_weights, dim=0, keepdim=True) + 0)
         td_weights *= td_normalizer
         self.register_parameter(
             "td_weights", nn.Parameter(td_weights, requires_grad=False)
@@ -264,7 +311,8 @@ class OutputLayer(nn.Module):
         state : tensor (n_units, batch_size)
             The new state of the units in this layer. This is the output of the model.
         """
-        self.state = torch.maximum(self.eps_2, self.state) * bu_err
+        if not self.clamped:
+            self.state = torch.maximum(self.eps_2, self.state) * bu_err
         return self.state
 
     def backward(self):
@@ -277,3 +325,18 @@ class OutputLayer(nn.Module):
             that needs to be back-propagated.
         """
         return self.td_weights @ self.state
+
+    def clamp(self, state):
+        """Clamp the units to a predefined state.
+
+        Parameters
+        ----------
+        state : tensor (n_units, batch_size)
+            The clamped state of the units.
+        """
+        self.state = state
+        self.clamped = True
+
+    def release_clamp(self):
+        """Release any clamped state from the units."""
+        self.clamped = False

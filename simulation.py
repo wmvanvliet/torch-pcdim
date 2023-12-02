@@ -1,6 +1,6 @@
 """Run a stimulation with the predictive coding model on the CPU and plot the results.
 
-This script reproduces Figure 5 of:
+This script reproduces Figures 5 and 6A of:
 
 Nour Eddine, Samer, Trevor Brothers, Lin Wang, Michael Spratling, and Gina R. Kuperberg.
 "A Predictive Coding Model of the N400". bioRxiv, 11 April 2023.
@@ -46,7 +46,7 @@ m_standard = deepcopy(m)  # designate as the "standard" initialized model
 m = deepcopy(m_standard)
 pred_err_repeat = []
 for n in tqdm(range(n_pre_iterations), unit="step"):
-    m(None)
+    m("zeros")
     pred_err_repeat.append(m.get_lex_sem_prederr())
 for n in tqdm(range(n_iterations), unit="step"):
     m(input_batch)
@@ -60,7 +60,7 @@ np.random.shuffle(input_batch)
 m = deepcopy(m_standard)
 pred_err_non_repeat = []
 for n in tqdm(range(n_pre_iterations), unit="step"):
-    m(None)
+    m("zeros")
     pred_err_non_repeat.append(m.get_lex_sem_prederr())
 for n in tqdm(range(n_iterations), unit="step"):
     m(input_batch)
@@ -84,7 +84,7 @@ sem_unrelated = [lex[i] for i in sem_unrelated_ind]
 m = deepcopy(m_standard)
 pred_err_sem_rel = []
 for n in tqdm(range(n_pre_iterations), unit="step"):
-    m(None)
+    m("zeros")
     pred_err_sem_rel.append(m.get_lex_sem_prederr())
 for n in tqdm(range(n_iterations), unit="step"):
     m(sem_related)
@@ -94,15 +94,48 @@ for n in tqdm(range(n_iterations), unit="step"):
 m = deepcopy(m_standard)
 pred_err_sem_unrel = []
 for n in tqdm(range(n_pre_iterations), unit="step"):
-    m(None)
+    m("zeros")
     pred_err_sem_unrel.append(m.get_lex_sem_prederr())
 for n in tqdm(range(n_iterations), unit="step"):
     m(sem_unrelated)
     pred_err_sem_unrel.append(m.get_lex_sem_prederr())
 
 ##
+# Experiment 3: Cloze probability
+# Preactive the units by setting the control units to a prediction of the upcoming word.
+# How accurate this prediction is will be determined by the cloze probability of the
+# word.
+
+# Try various cloze probabilities
+cloze_prob_experiments = dict(
+    low=1 / len(m.lex_units),
+    mid_low=0.25,
+    mid_high=0.5,
+    high=0.99,
+)
+pred_err_cloze = {name: [] for name in cloze_prob_experiments}
+
+for name, cloze_prob in cloze_prob_experiments.items():
+    # Start from a fresh model.
+    m.reset()
+
+    # Preactivate the model using the control (dummy) units.
+    for n in tqdm(range(n_pre_iterations), unit="step"):
+        m(clamp_orth="zeros", clamp_ctx=input_batch, cloze_prob=cloze_prob)
+    for n in tqdm(range(n_iterations), unit="step"):
+        m(clamp_orth=None, clamp_ctx=input_batch, cloze_prob=cloze_prob)
+
+    # Run through the standard batch of words.
+    for n in tqdm(range(n_pre_iterations), unit="step"):
+        m("zeros")
+        pred_err_cloze[name].append(m.get_lex_sem_prederr())
+    for n in tqdm(range(n_iterations), unit="step"):
+        m(input_batch)
+        pred_err_cloze[name].append(m.get_lex_sem_prederr())
+
+##
 # Plot the result.
-fig, axes = plt.subplots(ncols=2, figsize=(8, 3))
+fig, axes = plt.subplots(ncols=3, figsize=(12, 3), sharex=True, sharey=True)
 
 axes[0].plot(pred_err_repeat, label="Repeated")
 axes[0].plot(pred_err_non_repeat, label="Non-repeated")
@@ -117,5 +150,12 @@ axes[1].set_title("Semantic priming")
 axes[1].set_xlabel("Number of Iterations")
 axes[1].set_ylabel("Lexico-semantic PE")
 axes[1].legend()
+
+for name, pred_err in pred_err_cloze.items():
+    axes[2].plot(pred_err, label=name)
+axes[2].set_title("Cloze probability")
+axes[2].set_xlabel("Number of Iterations")
+axes[2].set_ylabel("Lexico-semantic PE")
+axes[2].legend()
 
 fig.tight_layout()

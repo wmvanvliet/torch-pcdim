@@ -31,6 +31,7 @@ class Weights:
     I_lex_sem: np.ndarray
     I_sem_ctx: np.ndarray
     I_orth_lex: np.ndarray
+    freq: np.ndarray
 
 
 def get_weights(data_path):
@@ -58,6 +59,7 @@ def get_weights(data_path):
           - ``I_lex_sem`` normalization matrix used for ``W_lex_sem``
           - ``I_sem_ctx`` normalization matrix used for ``W_sem_ctx``
           - ``I_orth_lex`` normalization matrix used for ``W_orth_lex``
+          - ``freq`` frequency information for the lexical units
     """
     # orthographic units
     orth_units = [
@@ -74,18 +76,16 @@ def get_weights(data_path):
     # control (dummy) units
     ctx_units = list(lex_units)
 
-    W_orth_lex = np.array([get_orth_repr(word) for word in lex_units])
-    I_orth_lex = np.diag(1 / (np.sum(W_orth_lex, axis=1) + 1))
-    W_orth_lex = I_orth_lex @ W_orth_lex
-
+    # Assemble weight matrices
     sem_features = _assemble_semantic_features(data_path, lex_size=len(lex_units))
+    W_orth_lex = np.array([get_orth_repr(word) for word in lex_units])
     W_lex_sem = sem_features
-    I_lex_sem = np.diag(1 / (np.sum(W_lex_sem, axis=1) + 1))
-    W_lex_sem = I_lex_sem @ W_lex_sem
-
     W_sem_ctx = sem_features.T
+
+    # Compute normalizers
+    I_orth_lex = np.diag(1 / (np.sum(W_orth_lex, axis=1) + 1))
+    I_lex_sem = np.diag(1 / (np.sum(W_lex_sem, axis=1) + 1))
     I_sem_ctx = np.diag(1 / np.sum(W_sem_ctx, axis=1))
-    W_sem_ctx = I_sem_ctx @ W_sem_ctx
 
     # Compute feedback weights
     V_ctx_sem = W_sem_ctx.T
@@ -94,9 +94,9 @@ def get_weights(data_path):
 
     # Apply frequency balancing to feedback weights
     freq = np.loadtxt(f"{data_path}/1579words_freq_values.txt")
-    V_lex_orth = (V_lex_orth + freq[None, :]) * (V_lex_orth > 0)
-    V_sem_lex = (V_sem_lex + freq[:, None]) * (V_sem_lex > 0)
-    V_ctx_sem = (V_ctx_sem + freq[None, :]) * (V_ctx_sem > 0)
+    # V_lex_orth = (V_lex_orth + freq[None, :]) * (V_lex_orth > 0)
+    # V_sem_lex = (V_sem_lex + freq[:, None]) * (V_sem_lex > 0)
+    # V_ctx_sem = (V_ctx_sem + freq[None, :]) * (V_ctx_sem > 0)
 
     return Weights(
         orth_units=orth_units,
@@ -112,6 +112,7 @@ def get_weights(data_path):
         I_orth_lex=I_orth_lex,
         I_lex_sem=I_lex_sem,
         I_sem_ctx=I_sem_ctx,
+        freq=freq,
     )
 
 
@@ -138,12 +139,12 @@ def get_orth_repr(word):
     return orth_repr
 
 
-def get_lex_repr(word, lex):
+def get_lex_repr(word, lex, cloze_prob=1.0, cloze_multiplier=2.0):
     """Get the lexical representation for a word.
 
     In the Nour Eddine et al. (2023) model, there is one dedicated lexical unit for each
-    word in the vocabulary. The lexical representation is hence a one-hot encoded
-    vector.
+    word in the vocabulary. At a cloze probability of 1.0, the lexical representation is
+    a one-hot encoded vector.
 
     Parameters
     ----------
@@ -151,14 +152,24 @@ def get_lex_repr(word, lex):
         The word to get the lexical representation for.
     lex : list[str]
         The lexicon of the model.
+    cloze_prob : float
+        The cloze probability of the word, determining how much the word is activated
+        relative to the other words in the lexicon.
+    cloze_multiplier : float
+        How much more words with a high cloze probability are activated than words with
+        a low cloze probability.
 
     Returns
     -------
     lex_repr : ndarray
         The lexical representation of the word.
     """
-    lex_repr = np.zeros(len(lex), dtype="float")
-    lex_repr[lex.index(word)] = 1
+    act_word = 2 * cloze_prob
+    act_other = (2 / (len(lex) - 1)) * (1 - cloze_prob)
+
+    lex_repr = np.empty(len(lex), dtype="float")
+    lex_repr.fill(act_other)
+    lex_repr[lex.index(word)] = act_word
     return lex_repr
 
 
