@@ -170,7 +170,7 @@ class InputLayer(nn.Module):
         positive number.
     """
 
-    def __init__(self, n_units, n_out, batch_size=1, bu_weights=None, eps_1=0.01):
+    def __init__(self, n_units, n_out, batch_size=1, bu_weights=None, eps_1=0.01, eps_2 = 0.0001):
         super().__init__()
         self.n_units = n_units
         self.n_out = n_out
@@ -187,7 +187,8 @@ class InputLayer(nn.Module):
         )
         self.register_buffer("td_err", torch.zeros((self.n_units, self.batch_size)))
         self.register_buffer("eps_1", torch.as_tensor(eps_1))
-
+        self.register_buffer("eps_2", torch.as_tensor(eps_2))
+        
         # Optionally initialize the weight matrices
         if bu_weights is None:
             bu_weights = torch.randn(n_out, n_units)

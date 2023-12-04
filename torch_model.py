@@ -128,6 +128,8 @@ class PCModel(nn.Module):
                 ).T.float()
             state_orth = state_orth.to(self.device)
             self.layers.orth.clamp(state_orth)
+        else:
+            self.layers.orth.release_clamp()
 
         if clamp_ctx is not None:
             state_ctx = (
