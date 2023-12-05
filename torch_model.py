@@ -100,9 +100,9 @@ class PCModel(nn.Module):
         This implementation follows Algorithm 1 presented in the supplementary
         information of Nour Eddine et al. (2023).
 
-        After calling this, the ``state_*``, ``prederr_*``, ``bias_*``, and ``rec_*``
-        attributes will have been updated. These can be used to probe the new state of
-        the model.
+        After calling this, the ``state_*``, ``bu_err_*``, ``td_err_*``, ``bias_*``, and
+        ``rec_*`` attributes will have been updated. These can be used to probe the new
+        state of the model.
 
         Parameters
         ----------
@@ -135,10 +135,8 @@ class PCModel(nn.Module):
             state_ctx = (
                 torch.tensor(
                     np.array(
-                        [
-                            get_lex_repr(word, self.lex_units, cloze_prob=cloze_prob)
-                            for word in clamp_ctx
-                        ]
+                        get_lex_repr(word, self.lex_units, cloze_prob=cloze_prob)
+                        for word in clamp_ctx
                     )
                 )
                 .float()
