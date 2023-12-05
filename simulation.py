@@ -120,15 +120,11 @@ for name, cloze_prob in cloze_prob_experiments.items():
     m.reset()
 
     # Preactivate the model using the control (dummy) units.
-    for n in tqdm(range(n_pre_iterations), unit="step"):
-        m(clamp_orth="zeros", clamp_ctx=input_batch, cloze_prob=cloze_prob)
     for n in tqdm(range(n_iterations), unit="step"):
         m(clamp_orth=None, clamp_ctx=input_batch, cloze_prob=cloze_prob)
+        pred_err_cloze[name].append(m.get_lex_sem_prederr())
 
     # Run through the standard batch of words.
-    for n in tqdm(range(n_pre_iterations), unit="step"):
-        m("zeros")
-        pred_err_cloze[name].append(m.get_lex_sem_prederr())
     for n in tqdm(range(n_iterations), unit="step"):
         m(input_batch)
         pred_err_cloze[name].append(m.get_lex_sem_prederr())
@@ -136,23 +132,24 @@ for name, cloze_prob in cloze_prob_experiments.items():
 ##
 # Plot the result.
 fig, axes = plt.subplots(ncols=3, figsize=(12, 3), sharex=True, sharey=True)
+iters_to_plot = 22
 
-axes[0].plot(pred_err_repeat, label="Repeated")
-axes[0].plot(pred_err_non_repeat, label="Non-repeated")
+axes[0].plot(pred_err_repeat[-iters_to_plot:], label="Repeated")
+axes[0].plot(pred_err_non_repeat[-iters_to_plot:], label="Non-repeated")
 axes[0].set_title("Repetition priming")
 axes[0].set_xlabel("Number of Iterations")
 axes[0].set_ylabel("Lexico-semantic PE")
 axes[0].legend()
 
-axes[1].plot(pred_err_sem_rel, label="Related")
-axes[1].plot(pred_err_sem_unrel, label="Unrelated")
+axes[1].plot(pred_err_sem_rel[-iters_to_plot:], label="Related")
+axes[1].plot(pred_err_sem_unrel[-iters_to_plot:], label="Unrelated")
 axes[1].set_title("Semantic priming")
 axes[1].set_xlabel("Number of Iterations")
 axes[1].set_ylabel("Lexico-semantic PE")
 axes[1].legend()
 
 for name, pred_err in pred_err_cloze.items():
-    axes[2].plot(pred_err, label=name)
+    axes[2].plot(pred_err[-iters_to_plot:], label=name)
 axes[2].set_title("Cloze probability")
 axes[2].set_xlabel("Number of Iterations")
 axes[2].set_ylabel("Lexico-semantic PE")
