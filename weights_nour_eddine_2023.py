@@ -34,7 +34,7 @@ class Weights:
     freq: np.ndarray
 
 
-def get_weights(data_path):
+def get_weights(data_path, train_V_lex_orth = False,load_trained_V_lex_orth = False):
     """Obtain the weight matrices to reproduce Nour Eddine et al. (2023).
 
     Parameters
@@ -91,6 +91,16 @@ def get_weights(data_path):
     V_ctx_sem = W_sem_ctx.T
     V_sem_lex = W_lex_sem.T
     V_lex_orth = W_orth_lex.T
+
+    if train_V_lex_orth:
+        # initialize the lexical-orthographic weights uniformly between 0 and 0.01
+        V_lex_orth = np.random.rand(V_lex_orth.shape[0], V_lex_orth.shape[1])*0.01 
+        W_orth_lex = V_lex_orth.T
+    
+    if load_trained_V_lex_orth:
+        V_lex_orth = np.load('./helper_txt_files/trained_V.npy') # V_lex_orth trained on all 1579 inputs
+        W_orth_lex = V_lex_orth.T
+        
 
     # Apply frequency balancing to feedback weights
     freq = np.loadtxt(f"{data_path}/1579words_freq_values.txt")
