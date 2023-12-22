@@ -51,30 +51,27 @@ class PCModel(nn.Module):
             OrderedDict(
                 orth=InputLayer(
                     n_units=len(self.orth_units),
-                    n_out=len(self.lex_units),
                     batch_size=batch_size,
-                    bu_weights=torch.as_tensor(self.weights.W_orth_lex).float(),
                 ),
                 lex=MiddleLayer(
                     n_units=len(self.lex_units),
                     n_in=len(self.orth_units),
-                    n_out=len(self.sem_units),
                     batch_size=batch_size,
-                    bu_weights=torch.as_tensor(self.weights.W_lex_sem).float(),
+                    bu_weights=torch.as_tensor(self.weights.W_orth_lex).float(),
                     td_weights=torch.as_tensor(self.weights.V_lex_orth).float(),
                 ),
                 sem=MiddleLayer(
                     n_units=len(self.sem_units),
                     n_in=len(self.lex_units),
-                    n_out=len(self.ctx_units),
                     batch_size=batch_size,
-                    bu_weights=torch.as_tensor(self.weights.W_sem_ctx).float(),
+                    bu_weights=torch.as_tensor(self.weights.W_lex_sem).float(),
                     td_weights=torch.as_tensor(self.weights.V_sem_lex).float(),
                 ),
                 ctx=OutputLayer(
                     n_in=len(self.sem_units),
                     n_units=len(self.ctx_units),
                     batch_size=batch_size,
+                    bu_weights=torch.as_tensor(self.weights.W_sem_ctx).float(),
                     td_weights=torch.as_tensor(self.weights.V_ctx_sem).float(),
                 ),
             )
@@ -135,8 +132,10 @@ class PCModel(nn.Module):
             state_ctx = (
                 torch.tensor(
                     np.array(
-                        get_lex_repr(word, self.lex_units, cloze_prob=cloze_prob)
-                        for word in clamp_ctx
+                        [
+                            get_lex_repr(word, self.lex_units, cloze_prob=cloze_prob)
+                            for word in clamp_ctx
+                        ]
                     )
                 )
                 .float()
