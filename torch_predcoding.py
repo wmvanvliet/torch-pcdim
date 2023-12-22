@@ -142,6 +142,20 @@ class MiddleLayer(nn.Module):
         """Release any clamped state from the units."""
         self.clamped = False
 
+    def train_weights(self, bu_err):
+        """Perform a training step, updating the weights.
+
+        Parameters
+        ----------
+        bu_err : tensor (n_in, batch_size)
+            The bottom-up error computed in the previous layer.
+        """
+        self.td_weights.set_(
+            torch.maximum(self.eps_2, self.td_weights)
+            * ((bu_err @ self.state.T) / self.state.sum(axis=1, keepdims=True).T)
+        )
+        self.bu_weights.set_(self.td_weights.T)
+
 
 class InputLayer(nn.Module):
     """A predictive-coding layer that is at the bottom of the stack.
@@ -283,8 +297,8 @@ class OutputLayer(nn.Module):
             td_weights = torch.rand(n_in, n_units) * 0.1
         assert bu_weights.shape == (n_units, n_in)
         assert td_weights.shape == (n_in, n_units)
-        bu_normalizer = 1 / (torch.sum(bu_weights, dim=1, keepdim=True) + 1)
-        td_normalizer = 1 / (torch.sum(td_weights, dim=0, keepdim=True) + 1)
+        bu_normalizer = 1 / (torch.sum(bu_weights, dim=1, keepdim=True) + 0)
+        td_normalizer = 1 / (torch.sum(td_weights, dim=0, keepdim=True) + 0)
         bu_weights *= bu_normalizer
         td_weights *= td_normalizer
         self.register_parameter(
@@ -340,3 +354,17 @@ class OutputLayer(nn.Module):
     def release_clamp(self):
         """Release any clamped state from the units."""
         self.clamped = False
+
+    def train_weights(self, bu_err):
+        """Perform a training step, updating the weights.
+
+        Parameters
+        ----------
+        bu_err : tensor (n_in, batch_size)
+            The bottom-up error computed in the previous layer.
+        """
+        self.td_weights.set_(
+            torch.maximum(self.eps_2, self.td_weights)
+            * ((bu_err @ self.state.T) / self.state.sum(axis=1, keepdims=True).T)
+        )
+        self.bu_weights.set_(self.td_weights.T)

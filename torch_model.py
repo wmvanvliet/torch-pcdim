@@ -91,7 +91,9 @@ class PCModel(nn.Module):
             * (self.layers.ctx.td_weights > 0)
         )
 
-    def __call__(self, clamp_orth=None, clamp_ctx=None, cloze_prob=1.0):
+    def __call__(
+        self, clamp_orth=None, clamp_ctx=None, cloze_prob=1.0, train_weights=False
+    ):
         """Run the simulation on the given input batch for a single step.
 
         This implementation follows Algorithm 1 presented in the supplementary
@@ -113,6 +115,8 @@ class PCModel(nn.Module):
             When ``None``, the control units are left unclamped.
         cloze_prob : float
             The cloze probability for the words clamped onto the control units.
+        train_weights : bool
+            Whether to end the step by updating the weight matrices.
         """
         if clamp_orth is not None:
             if clamp_orth == "zeros":
@@ -148,16 +152,21 @@ class PCModel(nn.Module):
 
         with torch.no_grad():
             # Forward pass
-            prederr = self.layers[0]()
+            prederr = [self.layers[0]()]
             for layer in self.layers[1:-1]:
-                prederr = layer(prederr)
-            output = self.layers[-1](prederr)
+                prederr.append(layer(prederr[-1]))
+            output = self.layers[-1](prederr[-1])
 
             # Backward pass
             rec = self.layers[-1].backward()
             for layer in self.layers[-2:0:-1]:
                 rec = layer.backward(rec)
             self.layers[0].backward(rec)
+
+            # Update weights
+            if train_weights:
+                for layer, err in zip(self.layers[1:], prederr):
+                    layer.train_weights(err)
 
         return output
 
