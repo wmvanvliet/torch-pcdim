@@ -21,24 +21,29 @@ data_path = "./helper_txt_files"
 # You can play with these to run more or fewer simulation steps
 n_pre_iterations = 2
 n_iterations = 20
+batch_size = 512
 
 # Instantiate the model
 weights = get_weights(data_path)
-m = PCModel(weights, batch_size=512).cuda()
+m = PCModel(weights, batch_size=batch_size).cuda()
 init_state = m.state_dict()
 
 # Grab the list of words in the experiment. We will use only the first 512 as inputs.
 with open(f"{data_path}/1579words_words.txt") as f:
     lex = f.read()
     lex = lex.strip().split("\n")
-input_batch = lex[:512]  # only use the first 512 words to test the model
+input_batch = lex[:batch_size]  # only use the first 512 words to test the model
 
 # Run through the standard 512 words once to pre-activate the model units.
 for n in tqdm(range(n_iterations), unit="step"):
-    m(input_batch)
+    out = m(input_batch)
 print("GPU memory usage:", torch.cuda.memory_allocated() / 1024 / 1024 / 1024, "GB")
 
 preact_state = m.state_dict()  # designate this as the "standard" initialized model
+
+# Check whether the model outputs the correct words given the input
+accuracy = np.mean(out.cpu().numpy().argmax(axis=0) == np.arange(batch_size))
+print("Accuracy of the model:", accuracy)
 
 ##
 # Experiment 1: Repetition priming

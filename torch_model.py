@@ -91,6 +91,17 @@ class PCModel(nn.Module):
             * (self.layers.ctx.td_weights > 0)
         )
 
+    def reset(self, batch_size=None):
+        """Set the values of the units to their initial state.
+
+        Parameters
+        ----------
+        batch_size : int | None
+            Optionally you can change the batch size to use from now on.
+        """
+        for layer in self.layers:
+            layer.reset(batch_size)
+
     def __call__(
         self, clamp_orth=None, clamp_ctx=None, cloze_prob=1.0, train_weights=False
     ):
@@ -165,8 +176,9 @@ class PCModel(nn.Module):
 
             # Update weights
             if train_weights:
-                for layer, err in zip(self.layers[1:], prederr):
-                    layer.train_weights(err)
+                self.layers.lex.train_weights(prederr[0])
+                # for layer, err in zip(self.layers[1:], prederr):
+                #     layer.train_weights(err)
 
         return output
 

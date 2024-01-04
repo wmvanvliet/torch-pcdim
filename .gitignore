@@ -1,3 +1,5 @@
 .*.swp
 __pycache__
 tags.temp
+tags
+helper_txt_files/trained_*

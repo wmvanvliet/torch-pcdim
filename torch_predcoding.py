@@ -88,6 +88,25 @@ class MiddleLayer(nn.Module):
         self.register_buffer("bu_normalizer", bu_normalizer)
         self.register_buffer("td_normalizer", td_normalizer)
 
+    def reset(self, batch_size=None):
+        """Set the values of the units to their initial state.
+
+        Parameters
+        ----------
+        batch_size : int | None
+            Optionally you can change the batch size to use from now on.
+        """
+        if batch_size is not None:
+            self.batch_size = batch_size
+        device = self.state.device
+        self.state = (1 / self.n_units) * torch.ones((self.n_units, self.batch_size))
+        self.reconstruction = (1 / self.n_units) * torch.ones(
+            (self.n_units, self.batch_size)
+        )
+        self.td_err = torch.zeros((self.n_units, self.batch_size))
+        self.bu_err = torch.zeros((self.n_units, self.batch_size))
+        self.to(device)
+
     def forward(self, bu_err):
         """Update state, propagate prediction error forward.
 
@@ -194,6 +213,24 @@ class InputLayer(nn.Module):
         self.register_buffer("td_err", torch.zeros((self.n_units, self.batch_size)))
         self.register_buffer("eps_1", torch.as_tensor(eps_1))
         self.register_buffer("eps_2", torch.as_tensor(eps_2))
+
+    def reset(self, batch_size=None):
+        """Set the values of the units to their initial state.
+
+        Parameters
+        ----------
+        batch_size : int | None
+            Optionally you can change the batch size to use from now on.
+        """
+        if batch_size is not None:
+            self.batch_size = batch_size
+        device = self.state.device
+        self.state = (1 / self.n_units) * torch.ones((self.n_units, self.batch_size))
+        self.reconstruction = (1 / self.n_units) * torch.ones(
+            (self.n_units, self.batch_size)
+        )
+        self.td_err = torch.zeros((self.n_units, self.batch_size))
+        self.to(device)
 
     def forward(self, x=None):
         """Update state, propagate prediction error forward.
@@ -309,6 +346,20 @@ class OutputLayer(nn.Module):
         )
         self.register_buffer("bu_normalizer", bu_normalizer)
         self.register_buffer("td_normalizer", td_normalizer)
+
+    def reset(self, batch_size=None):
+        """Set the values of the units to their initial state.
+
+        Parameters
+        ----------
+        batch_size : int | None
+            Optionally you can change the batch size to use from now on.
+        """
+        if batch_size is not None:
+            self.batch_size = batch_size
+        device = self.state.device
+        self.state = (1 / self.n_units) * torch.ones((self.n_units, self.batch_size))
+        self.to(device)
 
     def forward(self, bu_err):
         """Update state based on the bottom-up error propagated from the previous layer.
