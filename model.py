@@ -8,7 +8,7 @@ https://doi.org/10.1101/2023.04.10.536279.
 """
 import numpy as np
 
-from weights_nour_eddine_2023 import get_orth_repr, get_lex_repr
+from weights_nour_eddine_2023 import get_lex_repr, get_orth_repr
 
 # These constants control the sensitivity of the model. Currently set to the values
 # given in Nour Eddine et al. (2023).
@@ -114,7 +114,9 @@ class PCModel:
         self.bias_lex = np.zeros((len(self.lex_units), self.batch_size), dtype="float")
         self.bias_sem = np.zeros((len(self.sem_units), self.batch_size), dtype="float")
 
-    def __call__(self, clamp_orth=None, clamp_ctx=None, cloze_prob=1.0, train_weights = False):
+    def __call__(
+        self, clamp_orth=None, clamp_ctx=None, cloze_prob=1.0, train_weights=False
+    ):
         """Run the simulation on the given input batch for a single step.
 
         This implementation follows Algorithm 1 presented in the supplementary
@@ -184,20 +186,18 @@ class PCModel:
         self.rec_sem = self.weights.V_ctx_sem @ self.state_ctx
 
         if train_weights:
-            # update V_lex_orth 
-            self.weights.V_lex_orth = np.maximum(eps_2, self.weights.V_lex_orth)* (
-                (self.prederr_orth @ self.state_lex.T) 
-                / (np.ones_like(self.prederr_orth)@self.state_lex.T)
+            # update V_lex_orth
+            self.weights.V_lex_orth = np.maximum(eps_2, self.weights.V_lex_orth) * (
+                (self.prederr_orth @ self.state_lex.T)
+                / (np.ones_like(self.prederr_orth) @ self.state_lex.T)
             )
             # set W_orth_lex to the transpose of V_lex_orth
             self.weights.W_orth_lex = self.weights.V_lex_orth.T
-            
-            # # Print the proportion of orthographic inputs that activate the correct lexical unit 
+
+            # # Print the proportion of orthographic inputs that activate the correct lexical unit
             # correct_state_lex_activated = np.array([np.argsort(self.state_lex[:,i])[::-1][0] == i for i in range(1579)])
             # print(
             #     f'{np.sum(correct_state_lex_activated)/correct_state_lex_activated.shape[0]:.3f} percent of the orthographic inputs activate the intended semantics')
-
-
 
     def get_lex_sem_prederr(self):
         """Get the current average lexico-semantic prediction error across the batch.
