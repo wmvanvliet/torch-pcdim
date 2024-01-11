@@ -92,8 +92,7 @@ def get_weights(data_path):
     V_sem_lex = W_lex_sem.T
     V_lex_orth = W_orth_lex.T
 
-    # this is wrong
-    V_sem_lex /= V_sem_lex.sum(axis=1, keepdims=True)
+    V_sem_lex /= V_sem_lex.sum(axis=1, keepdims=True) + 1
 
     # Frequency information
     freq = np.loadtxt(f"{data_path}/1579words_freq_values.txt")
