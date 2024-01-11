@@ -129,8 +129,8 @@ class MiddleLayer(nn.Module):
             that needs to be back-propagated.
         """
         self.reconstruction = reconstruction
-        l = 1 #/ (self.td_weights.sum(axis=0, keepdims=True) + 1)
-        return (l * self.td_weights) @ self.state
+        normalizer = 1 / (self.td_weights.sum(axis=0, keepdims=True) + 1)
+        return (normalizer * self.td_weights) @ self.state
 
     def clamp(self, state):
         """Clamp the units to a predefined state.
@@ -344,9 +344,9 @@ class OutputLayer(nn.Module):
             The new state of the units in this layer. This is the output of the model.
         """
         if not self.clamped:
-            l = 1 / (self.td_weights.sum(axis=0, keepdims=True) + 0)
+            normalizer = 1 / (self.td_weights.sum(axis=0, keepdims=True) + 0)
             self.state = torch.maximum(self.eps_2, self.state) * (
-                (l * self.td_weights).T @ bu_err
+                (normalizer * self.td_weights).T @ bu_err
             )
         return self.state
 
@@ -359,8 +359,8 @@ class OutputLayer(nn.Module):
             The reconstruction of the state of the units in the previous layer
             that needs to be back-propagated.
         """
-        l = 1 # / (self.td_weights.sum(axis=0, keepdims=True) + 0)
-        return (l * self.td_weights) @ self.state
+        normalizer = 1 / (self.td_weights.sum(axis=0, keepdims=True) + 0)
+        return (normalizer * self.td_weights) @ self.state
 
     def clamp(self, state):
         """Clamp the units to a predefined state.
