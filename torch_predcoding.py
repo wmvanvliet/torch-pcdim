@@ -26,9 +26,6 @@ class MiddleLayer(nn.Module):
         How many units in the next layer, i.e. the number of outgoing connections.
     batch_size : int
         The number of inputs we compute per batch.
-    bu_weights : tensor (n_out, n_units) | None
-        The weight matrix used to propagate the error signal from the previous layer.
-        When not specified, a randomly initiated matrix will be used.
     td_weights : tensor (n_in, n_units) | None
         The weight matrix used to back-propagate the prediction to the previous layer.
         When not specified, a randomly initiated matrix will be used.
@@ -44,7 +41,6 @@ class MiddleLayer(nn.Module):
         n_units,
         n_in,
         batch_size=1,
-        bu_weights=None,
         td_weights=None,
         eps_1=0.01,
         eps_2=0.0001,
@@ -69,24 +65,12 @@ class MiddleLayer(nn.Module):
         self.register_buffer("bu_err", torch.zeros((self.n_units, self.batch_size)))
 
         # Optionally initialize the weight matrices
-        if bu_weights is None:
-            bu_weights = torch.rand(n_units, n_in) * 0.1
         if td_weights is None:
             td_weights = torch.rand(n_in, n_units) * 0.1
-        assert bu_weights.shape == (n_units, n_in)
         assert td_weights.shape == (n_in, n_units)
-        bu_normalizer = 1 / (torch.sum(bu_weights, dim=1, keepdim=True) + 1)
-        td_normalizer = 1 / (torch.sum(td_weights, dim=0, keepdim=True) + 1)
-        bu_weights *= bu_normalizer
-        td_weights *= td_normalizer
-        self.register_parameter(
-            "bu_weights", nn.Parameter(bu_weights, requires_grad=False)
-        )
         self.register_parameter(
             "td_weights", nn.Parameter(td_weights, requires_grad=False)
         )
-        self.register_buffer("bu_normalizer", bu_normalizer)
-        self.register_buffer("td_normalizer", td_normalizer)
 
     def reset(self, batch_size=None):
         """Set the values of the units to their initial state.
@@ -121,8 +105,9 @@ class MiddleLayer(nn.Module):
             The bottom-up error that needs to propagate to the next layer.
         """
         if not self.clamped:
+            l = 1 / (self.td_weights.sum(axis=0, keepdims=True) + 1e-5)
             self.state = torch.maximum(self.eps_2, self.state) * (
-                (self.bu_weights @ bu_err) + (self.bu_normalizer * self.td_err)
+                ((l * self.td_weights).T @ bu_err) + (l.T * self.td_err)
             )
         self.bu_err = self.state / torch.maximum(self.eps_1, self.reconstruction)
         self.td_err = self.reconstruction / torch.maximum(self.eps_1, self.state)
@@ -173,7 +158,6 @@ class MiddleLayer(nn.Module):
             torch.maximum(self.eps_2, self.td_weights)
             * ((bu_err @ self.state.T) / self.state.sum(axis=1, keepdims=True).T)
         )
-        self.bu_weights.set_(self.td_weights.T)
 
 
 class InputLayer(nn.Module):
@@ -296,9 +280,6 @@ class OutputLayer(nn.Module):
         How many units in the previous layer, i.e. the number of incoming connections.
     batch_size : int
         The number of inputs we compute per batch.
-    bu_weights : tensor (n_out, n_units) | None
-        The weight matrix used to propagate the error signal from the previous layer.
-        When not specified, a randomly initiated matrix will be used.
     td_weights : tensor (n_in, n_units) | None
         The weight matrix used to back-propagate the prediction to the previous layer.
         When not specified, a randomly initiated matrix will be used.
@@ -311,7 +292,6 @@ class OutputLayer(nn.Module):
         n_in,
         n_units,
         batch_size=1,
-        bu_weights=None,
         td_weights=None,
         eps_2=0.0001,
     ):
@@ -328,24 +308,12 @@ class OutputLayer(nn.Module):
         )
 
         # Optionally initialize the weight matrices
-        if bu_weights is None:
-            bu_weights = torch.rand(n_units, n_in) * 0.1
         if td_weights is None:
             td_weights = torch.rand(n_in, n_units) * 0.1
-        assert bu_weights.shape == (n_units, n_in)
         assert td_weights.shape == (n_in, n_units)
-        bu_normalizer = 1 / (torch.sum(bu_weights, dim=1, keepdim=True) + 0)
-        td_normalizer = 1 / (torch.sum(td_weights, dim=0, keepdim=True) + 0)
-        bu_weights *= bu_normalizer
-        td_weights *= td_normalizer
-        self.register_parameter(
-            "bu_weights", nn.Parameter(bu_weights, requires_grad=False)
-        )
         self.register_parameter(
             "td_weights", nn.Parameter(td_weights, requires_grad=False)
         )
-        self.register_buffer("bu_normalizer", bu_normalizer)
-        self.register_buffer("td_normalizer", td_normalizer)
 
     def reset(self, batch_size=None):
         """Set the values of the units to their initial state.
@@ -375,8 +343,9 @@ class OutputLayer(nn.Module):
             The new state of the units in this layer. This is the output of the model.
         """
         if not self.clamped:
+            l = 1 / (self.td_weights.sum(axis=0, keepdims=True) + 0)
             self.state = torch.maximum(self.eps_2, self.state) * (
-                self.bu_weights @ bu_err
+                (l * self.td_weights).T @ bu_err
             )
         return self.state
 
@@ -418,4 +387,3 @@ class OutputLayer(nn.Module):
             torch.maximum(self.eps_2, self.td_weights)
             * ((bu_err @ self.state.T) / self.state.sum(axis=1, keepdims=True).T)
         )
-        self.bu_weights.set_(self.td_weights.T)
