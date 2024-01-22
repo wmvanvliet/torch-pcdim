@@ -57,21 +57,35 @@ class PCModel(nn.Module):
                     n_units=len(self.lex_units),
                     n_in=len(self.orth_units),
                     batch_size=batch_size,
-                    td_weights=torch.as_tensor(self.weights.V_lex_orth).float(),
+                    td_weights=torch.as_tensor(self.weights.V_lex_orth).float().T,
                 ),
                 sem=MiddleLayer(
                     n_units=len(self.sem_units),
                     n_in=len(self.lex_units),
                     batch_size=batch_size,
-                    td_weights=torch.as_tensor(self.weights.V_sem_lex).float(),
+                    td_weights=torch.as_tensor(self.weights.V_sem_lex).float().T,
                 ),
                 ctx=OutputLayer(
                     n_in=len(self.sem_units),
                     n_units=len(self.ctx_units),
                     batch_size=batch_size,
-                    td_weights=torch.as_tensor(self.weights.V_ctx_sem).float(),
+                    td_weights=torch.as_tensor(self.weights.V_ctx_sem).float().T,
                 ),
             )
+        )
+
+        # Apply frequency scaling to the top-down weights
+        self.layers.lex.td_weights.set_(
+            (self.layers.lex.td_weights + torch.tensor(weights.freq[:, None])).float()
+            * (self.layers.lex.td_weights > 0)
+        )
+        self.layers.sem.td_weights.set_(
+            (self.layers.sem.td_weights + torch.tensor(weights.freq[None, :])).float()
+            * (self.layers.sem.td_weights > 0)
+        )
+        self.layers.ctx.td_weights.set_(
+            (self.layers.ctx.td_weights + torch.tensor(weights.freq[:, None])).float()
+            * (self.layers.ctx.td_weights > 0)
         )
 
     def reset(self, batch_size=None):
@@ -120,7 +134,7 @@ class PCModel(nn.Module):
                 # Clamp orthograhic input onto the orth units.
                 state_orth = torch.tensor(
                     np.array([get_orth_repr(word) for word in clamp_orth])
-                ).T.float()
+                ).float()
             state_orth = state_orth.to(self.device)
             self.layers.orth.clamp(state_orth)
         else:
@@ -137,7 +151,6 @@ class PCModel(nn.Module):
                     )
                 )
                 .float()
-                .T
             )
             state_ctx = state_ctx.to(self.device)
             self.layers.ctx.clamp(state_ctx)
@@ -173,8 +186,8 @@ class PCModel(nn.Module):
         lex_sem_prederr : float
             The total lexico-semantic prediction error.
         """
-        lex_prederr = self.layers.lex.bu_err.detach().cpu().sum(axis=0)
-        sem_prederr = self.layers.sem.bu_err.detach().cpu().sum(axis=0)
+        lex_prederr = self.layers.lex.bu_err.detach().cpu().sum(axis=1)
+        sem_prederr = self.layers.sem.bu_err.detach().cpu().sum(axis=1)
         return torch.mean(lex_prederr + sem_prederr).item()
 
     def to(self, device):
