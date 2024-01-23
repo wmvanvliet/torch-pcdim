@@ -74,19 +74,19 @@ class PCModel(nn.Module):
             )
         )
 
-        # Apply frequency scaling to the top-down weights
-        self.layers.lex.td_weights.set_(
-            (self.layers.lex.td_weights + torch.tensor(weights.freq[:, None])).float()
-            * (self.layers.lex.td_weights > 0)
-        )
-        self.layers.sem.td_weights.set_(
-            (self.layers.sem.td_weights + torch.tensor(weights.freq[None, :])).float()
-            * (self.layers.sem.td_weights > 0)
-        )
-        self.layers.ctx.td_weights.set_(
-            (self.layers.ctx.td_weights + torch.tensor(weights.freq[:, None])).float()
-            * (self.layers.ctx.td_weights > 0)
-        )
+        # # Apply frequency scaling to the top-down weights
+        # self.layers.lex.td_weights.set_(
+        #     (self.layers.lex.td_weights + torch.tensor(weights.freq[:, None])).float()
+        #     * (self.layers.lex.td_weights > 0)
+        # )
+        # self.layers.sem.td_weights.set_(
+        #     (self.layers.sem.td_weights + torch.tensor(weights.freq[None, :])).float()
+        #     * (self.layers.sem.td_weights > 0)
+        # )
+        # self.layers.ctx.td_weights.set_(
+        #     (self.layers.ctx.td_weights + torch.tensor(weights.freq[:, None])).float()
+        #     * (self.layers.ctx.td_weights > 0)
+        # )
 
     def reset(self, batch_size=None):
         """Set the values of the units to their initial state.

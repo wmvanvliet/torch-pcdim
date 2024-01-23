@@ -105,9 +105,10 @@ class MiddleLayer(nn.Module):
             The bottom-up error that needs to propagate to the next layer.
         """
         if not self.clamped:
-            l = 1 / (self.td_weights.sum(axis=1, keepdims=True) + 1)
+            normalizer = 1 / (self.td_weights.sum(axis=1, keepdims=True) + 1)
             self.state = torch.maximum(self.eps_2, self.state) * (
-                (bu_err @ (l * self.td_weights).T) + (l.T * self.td_err)
+                (bu_err @ (normalizer * self.td_weights).T)
+                + (normalizer.T * self.td_err)
             )
         self.bu_err = self.state / torch.maximum(self.eps_1, self.reconstruction)
         self.td_err = self.reconstruction / torch.maximum(self.eps_1, self.state)
@@ -129,7 +130,7 @@ class MiddleLayer(nn.Module):
             that needs to be back-propagated.
         """
         self.reconstruction = reconstruction
-        normalizer = 1 / (self.td_weights.sum(axis=0, keepdims=True) + 1)
+        normalizer = 1 / (self.td_weights.sum(axis=1, keepdims=True) + 1)
         return self.state @ (normalizer * self.td_weights)
 
     def clamp(self, state):
@@ -359,7 +360,7 @@ class OutputLayer(nn.Module):
             The reconstruction of the state of the units in the previous layer
             that needs to be back-propagated.
         """
-        normalizer = 1 / (self.td_weights.sum(axis=0, keepdims=True) + 0)
+        normalizer = 1 / (self.td_weights.sum(axis=1, keepdims=True) + 0)
         return self.state @ (normalizer * self.td_weights)
 
     def clamp(self, state):
