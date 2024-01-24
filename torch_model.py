@@ -186,8 +186,8 @@ class PCModel(nn.Module):
         lex_sem_prederr : float
             The total lexico-semantic prediction error.
         """
-        lex_prederr = self.layers.lex.bu_err.detach().cpu().sum(axis=1)
-        sem_prederr = self.layers.sem.bu_err.detach().cpu().sum(axis=1)
+        lex_prederr = abs(self.layers.lex.bu_err.detach().cpu()).sum(axis=1)
+        sem_prederr = abs(self.layers.sem.bu_err.detach().cpu()).sum(axis=1)
         return torch.mean(lex_prederr + sem_prederr).item()
 
     def to(self, device):

@@ -92,6 +92,8 @@ def get_weights(data_path):
     V_sem_lex = W_lex_sem.T
     V_lex_orth = W_orth_lex.T
 
+    # V_sem_lex /= V_sem_lex.sum(axis=1, keepdims=True)
+
     # Frequency information
     freq = np.loadtxt(f"{data_path}/1579words_freq_values.txt")
 

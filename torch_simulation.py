@@ -20,7 +20,7 @@ data_path = "./helper_txt_files"
 
 # You can play with these to run more or fewer simulation steps
 n_pre_iterations = 2
-n_iterations = 20
+n_iterations = 50
 batch_size = 512
 
 # Instantiate the model
