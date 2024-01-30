@@ -55,6 +55,7 @@ class MiddleLayer(nn.Module):
         self.register_buffer("eps_1", torch.as_tensor(eps_1))
         self.register_buffer("eps_2", torch.as_tensor(eps_2))
         self.register_buffer("one", torch.as_tensor(1))
+        self.register_buffer("zero", torch.as_tensor(0))
         self.register_buffer(
             "state", (1 / self.n_units) * torch.ones((self.batch_size, self.n_units))
         )
@@ -150,7 +151,7 @@ class MiddleLayer(nn.Module):
         """Release any clamped state from the units."""
         self.clamped = False
 
-    def train_weights(self, bu_err):
+    def train_weights(self, bu_err, lr=0.01):
         """Perform a training step, updating the weights.
 
         Parameters
@@ -158,16 +159,12 @@ class MiddleLayer(nn.Module):
         bu_err : tensor (batch_size, n_in)
             The bottom-up error computed in the previous layer.
         """
-        self.td_weights.set_(
-            torch.minimum(
-                self.one,
-                torch.maximum(self.eps_2, self.td_weights)
-                * (
-                    (self.state.T @ bu_err)
-                    / torch.maximum(self.eps_2, self.state.sum(axis=0, keepdims=True)).T
-                ),
-            )
-        )
+        delta = self.state.T @ (bu_err - 1)
+        delta /= torch.maximum(self.eps_2, self.state.sum(axis=0, keepdims=True)).T
+        delta = 1 + lr * delta
+        weights = torch.maximum(self.zero, self.td_weights * delta)
+        weights = torch.minimum(self.one, weights)
+        self.td_weights.set_(weights)
         # print("hidden:", self.td_weights.min(), self.td_weights.max())
 
 
@@ -315,6 +312,7 @@ class OutputLayer(nn.Module):
 
         self.register_buffer("eps_2", torch.as_tensor(eps_2))
         self.register_buffer("one", torch.as_tensor(1))
+        self.register_buffer("zero", torch.as_tensor(0))
         self.register_buffer(
             "state", (1 / self.n_units) * torch.ones((self.batch_size, self.n_units))
         )
@@ -389,7 +387,7 @@ class OutputLayer(nn.Module):
         """Release any clamped state from the units."""
         self.clamped = False
 
-    def train_weights(self, bu_err):
+    def train_weights(self, bu_err, lr=0.01):
         """Perform a training step, updating the weights.
 
         Parameters
@@ -397,14 +395,10 @@ class OutputLayer(nn.Module):
         bu_err : tensor (batch_size, n_in)
             The bottom-up error computed in the previous layer.
         """
-        self.td_weights.set_(
-            torch.minimum(
-                self.one,
-                torch.maximum(self.eps_2, self.td_weights)
-                * (
-                    (self.state.T @ bu_err)
-                    / torch.maximum(self.eps_2, self.state.sum(axis=0, keepdims=True)).T
-                ),
-            )
-        )
+        delta = self.state.T @ (bu_err - 1)
+        delta /= torch.maximum(self.eps_2, self.state.sum(axis=0, keepdims=True)).T
+        delta = 1 + lr * delta
+        weights = torch.maximum(self.zero, self.td_weights * delta)
+        weights = torch.minimum(self.one, weights)
+        self.td_weights.set_(weights)
         # print("output:", self.td_weights.min(), self.td_weights.max())

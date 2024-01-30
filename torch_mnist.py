@@ -9,7 +9,7 @@ from torchvision import datasets, transforms
 from torch_predcoding import InputLayer, MiddleLayer, OutputLayer
 
 
-def train(args, model, device, train_loader, epoch, n_iter=20):
+def train(args, model, device, train_loader, epoch, n_iter=20, freq=5, lr=0.01):
     model.train()
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
@@ -18,8 +18,8 @@ def train(args, model, device, train_loader, epoch, n_iter=20):
         for i in range(n_iter):
             output = model(data)
             model.backward()
-            if i % 5 == 0:
-                model.train_weights(data)
+            if i % freq == 0:
+                model.train_weights(data, lr=lr)
         model.release_clamp()
         model.reset(batch_size=len(data))
         for i in range(n_iter):
@@ -43,8 +43,6 @@ def train(args, model, device, train_loader, epoch, n_iter=20):
                     100.0 * correct,
                 )
             )
-            if batch_idx == 20:
-                break
 
     model.release_clamp()
 
@@ -140,7 +138,7 @@ device = torch.device("cuda" if use_cuda else "cpu")
 train_kwargs = {"batch_size": args.batch_size}
 test_kwargs = {"batch_size": args.test_batch_size}
 if use_cuda:
-    cuda_kwargs = {"num_workers": 1, "pin_memory": True, "shuffle": True}
+    cuda_kwargs = {"num_workers": 0, "pin_memory": True, "shuffle": True}
     train_kwargs.update(cuda_kwargs)
     test_kwargs.update(cuda_kwargs)
 
@@ -164,52 +162,66 @@ class PCModel(nn.Module):
                 [
                     ("input", InputLayer(batch_size=batch_size, n_units=28 * 28)),
                     (
-                        "hidden",
-                        MiddleLayer(batch_size=batch_size, n_units=500, n_in=28 * 28),
+                        "hidden1",
+                        MiddleLayer(batch_size=batch_size, n_units=300, n_in=28 * 28),
+                    ),
+                    (
+                        "hidden2",
+                        MiddleLayer(batch_size=batch_size, n_units=100, n_in=300),
                     ),
                     (
                         "output",
-                        OutputLayer(batch_size=batch_size, n_in=500, n_units=10),
+                        OutputLayer(batch_size=batch_size, n_in=100, n_units=10),
                     ),
                 ]
             )
         )
 
-    def clamp(self, data, target):
-        data = data.reshape(-1, 28 * 28)
-        target = F.one_hot(target, 10).float()
-        self.layers.input.clamp(data)
-        self.layers.output.clamp(target)
+    def clamp(self, data=None, target=None):
+        if data is not None:
+            data = data.reshape(-1, 28 * 28)
+            self.layers.input.clamp(data)
+        if target is not None:
+            target = F.one_hot(target, 10).float()
+            self.layers.output.clamp(target)
 
     def release_clamp(self):
         self.layers.input.release_clamp()
         self.layers.output.release_clamp()
 
     def forward(self, x):
-        bu_err = self.layers.input(x.reshape(-1, 28 * 28))
-        bu_err = self.layers.hidden(bu_err)
+        if x is not None:
+            x = x.reshape(-1, 28 * 28)
+        bu_err = self.layers.input(x)
+        bu_err = self.layers.hidden1(bu_err)
+        bu_err = self.layers.hidden2(bu_err)
         return self.layers.output(bu_err)
 
     def backward(self):
         rec = self.layers.output.backward()
-        rec = self.layers.hidden.backward(rec)
+        rec = self.layers.hidden2.backward(rec)
+        rec = self.layers.hidden1.backward(rec)
         self.layers.input.backward(rec)
 
-    def train_weights(self, x):
-        bu_err_hidden = self.layers.input(x.reshape(-1, 28 * 28))
-        bu_err_output = self.layers.hidden(bu_err_hidden)
-        self.layers.hidden.train_weights(bu_err_hidden)
-        self.layers.output.train_weights(bu_err_output)
+    def train_weights(self, x, lr=0.01):
+        bu_err_hidden1 = self.layers.input(x.reshape(-1, 28 * 28))
+        bu_err_hidden2 = self.layers.hidden1(bu_err_hidden1)
+        bu_err_output = self.layers.hidden2(bu_err_hidden2)
+        self.layers.hidden1.train_weights(bu_err_hidden1, lr=lr)
+        self.layers.hidden2.train_weights(bu_err_hidden2, lr=lr)
+        self.layers.output.train_weights(bu_err_output, lr=lr)
 
     def reset(self, batch_size=None):
         if batch_size is not None:
             self.batch_size = batch_size
         self.layers.input.reset(batch_size)
-        self.layers.hidden.reset(batch_size)
+        self.layers.hidden1.reset(batch_size)
+        self.layers.hidden2.reset(batch_size)
         self.layers.output.reset(batch_size)
 
 
 model = PCModel().to(device)
-for epoch in range(1):
-    train(args, model, device, train_loader, epoch, n_iter=20)
+for epoch, (freq, lr) in enumerate([(10, 0.001), (10, 0.001), (10, 0.0001)]):
+    print(f"{epoch=}, {freq=}, {lr=}")
+    train(args, model, device, train_loader, epoch, n_iter=100, freq=freq, lr=lr)
     test(model, device, test_loader, n_iter=20)
