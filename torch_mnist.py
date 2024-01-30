@@ -206,9 +206,13 @@ lr = args.lr
 for epoch in range(args.epochs):
     if epoch % args.step_down == 0:
         lr /= 10
-    train(args, model, device, train_loader, epoch, n_iter=10, freq=10, lr=lr)
+    train(args, model, device, train_loader, epoch, n_iter=100, freq=10, lr=lr)
     test(model, device, test_loader, n_iter=20)
 
+# Save trained model
+checkpoint = dict(args.__dict__)
+checkpoint['state_dict'] = model.state_dict()
+torch.save(checkpoint, 'data/MNIST/trained_model.pkl')
 
 # Plot reconstruction of the digits
 model.reset(batch_size=10)
@@ -223,4 +227,5 @@ fig, axes = plt.subplots(nrows=10, ncols=20, figsize=(20, 20))
 for i, r in enumerate(recons):
     for j in range(10):
         axes[j][i].imshow(r[j])
-plt.savefig("reconstructions.png")
+plt.tight_layout()
+plt.savefig("mnist_reconstructions.png")
