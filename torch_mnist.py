@@ -6,13 +6,16 @@ import torch.nn.functional as F
 from torch import nn
 from torchvision import datasets, transforms
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 from torch_predcoding import InputLayer, MiddleLayer, OutputLayer
 
 
 def train(args, model, device, train_loader, epoch, n_iter=20, freq=5, lr=0.01):
     model.train()
-    for batch_idx, (data, target) in tqdm(enumerate(train_loader), total=len(train_loader), unit="batches"):
+    for batch_idx, (data, target) in tqdm(
+        enumerate(train_loader), total=len(train_loader), unit="batches"
+    ):
         data, target = data.to(device), target.to(device)
         model.reset(batch_size=len(data))
         model.clamp(data, target)
@@ -80,10 +83,18 @@ parser.add_argument(
     help="number of epochs to train (default: 30)",
 )
 parser.add_argument(
-    "--lr", type=float, default=0.01, metavar="LR", help="initial learning rate (default: 0.01)"
+    "--lr",
+    type=float,
+    default=0.01,
+    metavar="LR",
+    help="initial learning rate (default: 0.01)",
 )
 parser.add_argument(
-    "--step-down", type=int, default=10, metavar="LR", help="step down learning rate after this amount of epochs (default: 10)"
+    "--step-down",
+    type=int,
+    default=10,
+    metavar="LR",
+    help="step down learning rate after this amount of epochs (default: 10)",
 )
 parser.add_argument(
     "--log-interval",
@@ -195,5 +206,21 @@ lr = args.lr
 for epoch in range(args.epochs):
     if epoch % args.step_down == 0:
         lr /= 10
-    train(args, model, device, train_loader, epoch, n_iter=100, freq=10, lr=lr)
+    train(args, model, device, train_loader, epoch, n_iter=10, freq=10, lr=lr)
     test(model, device, test_loader, n_iter=20)
+
+
+# Plot reconstruction of the digits
+model.reset(batch_size=10)
+model.release_clamp()
+model.clamp(target=torch.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]).to(device))
+recons = []
+for i in range(20):
+    output = model(None)
+    model.backward()
+    recons.append(model.layers.input.state.cpu().reshape(10, 28, 28))
+fig, axes = plt.subplots(nrows=10, ncols=20, figsize=(20, 20))
+for i, r in enumerate(recons):
+    for j in range(10):
+        axes[j][i].imshow(r[j])
+plt.savefig("reconstructions.png")
