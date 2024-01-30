@@ -5,45 +5,22 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 from torchvision import datasets, transforms
+from tqdm import tqdm
 
 from torch_predcoding import InputLayer, MiddleLayer, OutputLayer
 
 
 def train(args, model, device, train_loader, epoch, n_iter=20, freq=5, lr=0.01):
     model.train()
-    for batch_idx, (data, target) in enumerate(train_loader):
+    for batch_idx, (data, target) in tqdm(enumerate(train_loader), total=len(train_loader), unit="batches"):
         data, target = data.to(device), target.to(device)
         model.reset(batch_size=len(data))
         model.clamp(data, target)
         for i in range(n_iter):
-            output = model(data)
+            model(data)
             model.backward()
             if i % freq == 0:
                 model.train_weights(data, lr=lr)
-        model.release_clamp()
-        model.reset(batch_size=len(data))
-        for i in range(n_iter):
-            output = model(data)
-            model.backward()
-        train_loss = F.nll_loss(
-            output, target, reduction="sum"
-        ).item()  # sum up batch loss
-        pred = output.argmax(
-            dim=1, keepdim=True
-        )  # get the index of the max log-probability
-        correct = pred.eq(target.view_as(pred)).float().mean().item()
-        if batch_idx % args.log_interval == 0:
-            print(
-                "Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tAcc: {:.6f}".format(
-                    epoch,
-                    batch_idx * len(data),
-                    len(train_loader.dataset),
-                    100.0 * batch_idx / len(train_loader),
-                    train_loss,
-                    100.0 * correct,
-                )
-            )
-
     model.release_clamp()
 
 
@@ -70,7 +47,7 @@ def test(model, device, test_loader, n_iter=20):
     test_loss /= len(test_loader.dataset)
 
     print(
-        "\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
+        "\nTest set performance: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
             test_loss,
             correct,
             len(test_loader.dataset),
