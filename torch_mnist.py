@@ -40,7 +40,7 @@ def test(model, device, test_loader, n_iter=20):
                 output = model(data)
                 model.backward()
             test_loss += F.nll_loss(
-                output, target, reduction="sum"
+                F.log_softmax(output, dim=1), target, reduction="sum"
             ).item()  # sum up batch loss
             pred = output.argmax(
                 dim=1, keepdim=True

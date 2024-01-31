@@ -54,8 +54,6 @@ class MiddleLayer(nn.Module):
 
         self.register_buffer("eps_1", torch.as_tensor(eps_1))
         self.register_buffer("eps_2", torch.as_tensor(eps_2))
-        self.register_buffer("one", torch.as_tensor(1))
-        self.register_buffer("zero", torch.as_tensor(0))
         self.register_buffer(
             "state", (1 / self.n_units) * torch.ones((self.batch_size, self.n_units))
         )
@@ -162,10 +160,8 @@ class MiddleLayer(nn.Module):
         delta = self.state.T @ (bu_err - 1)
         delta /= torch.maximum(self.eps_2, self.state.sum(axis=0, keepdims=True)).T
         delta = 1 + lr * delta
-        weights = torch.maximum(self.zero, self.td_weights * delta)
-        weights = torch.minimum(self.one, weights)
+        weights = torch.clamp(self.td_weights * delta, 0, 1)
         self.td_weights.set_(weights)
-        # print("hidden:", self.td_weights.min(), self.td_weights.max())
 
 
 class InputLayer(nn.Module):
@@ -311,8 +307,6 @@ class OutputLayer(nn.Module):
         self.clamped = False  # see the clamp() method
 
         self.register_buffer("eps_2", torch.as_tensor(eps_2))
-        self.register_buffer("one", torch.as_tensor(1))
-        self.register_buffer("zero", torch.as_tensor(0))
         self.register_buffer(
             "state", (1 / self.n_units) * torch.ones((self.batch_size, self.n_units))
         )
@@ -398,7 +392,5 @@ class OutputLayer(nn.Module):
         delta = self.state.T @ (bu_err - 1)
         delta /= torch.maximum(self.eps_2, self.state.sum(axis=0, keepdims=True)).T
         delta = 1 + lr * delta
-        weights = torch.maximum(self.zero, self.td_weights * delta)
-        weights = torch.minimum(self.one, weights)
+        weights = torch.clamp(self.td_weights * delta, 0, 1)
         self.td_weights.set_(weights)
-        # print("output:", self.td_weights.min(), self.td_weights.max())
