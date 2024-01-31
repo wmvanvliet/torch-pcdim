@@ -73,6 +73,13 @@ class MiddleLayer(nn.Module):
         self.register_parameter(
             "td_weights", nn.Parameter(td_weights, requires_grad=False)
         )
+        self.register_parameter(
+            "normalizer",
+            nn.Parameter(
+                1 / (self.td_weights.sum(axis=1, keepdims=True) + 1),
+                requires_grad=False,
+            ),
+        )
 
     def reset(self, batch_size=None):
         """Set the values of the units to their initial state.
@@ -107,10 +114,10 @@ class MiddleLayer(nn.Module):
             The bottom-up error that needs to propagate to the next layer.
         """
         if not self.clamped:
-            normalizer = 1 / (self.td_weights.sum(axis=1, keepdims=True) + 1)
+            # self.normalizer = 1 / (self.td_weights.sum(axis=1, keepdims=True) + 1)
             self.state = torch.maximum(self.eps_2, self.state) * (
-                (bu_err @ (normalizer * self.td_weights).T)
-                + (normalizer.T * self.td_err)
+                (bu_err @ (self.normalizer * self.td_weights).T)
+                + (self.normalizer.T * self.td_err)
             )
         self.bu_err = self.state / torch.maximum(self.eps_1, self.reconstruction)
         self.td_err = self.reconstruction / torch.maximum(self.eps_1, self.state)
@@ -322,6 +329,13 @@ class OutputLayer(nn.Module):
         self.register_parameter(
             "td_weights", nn.Parameter(td_weights, requires_grad=False)
         )
+        self.register_parameter(
+            "normalizer",
+            nn.Parameter(
+                1 / (self.td_weights.sum(axis=1, keepdims=True) + 0),
+                requires_grad=False,
+            ),
+        )
 
     def reset(self, batch_size=None):
         """Set the values of the units to their initial state.
@@ -351,9 +365,9 @@ class OutputLayer(nn.Module):
             The new state of the units in this layer. This is the output of the model.
         """
         if not self.clamped:
-            normalizer = 1 / (self.td_weights.sum(axis=1, keepdims=True) + 0)
+            # self.normalizer = 1 / (self.td_weights.sum(axis=1, keepdims=True) + 0)
             self.state = torch.maximum(self.eps_2, self.state) * (
-                bu_err @ (normalizer * self.td_weights).T
+                bu_err @ (self.normalizer * self.td_weights).T
             )
         return self.state
 
