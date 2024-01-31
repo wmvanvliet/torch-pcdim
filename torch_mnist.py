@@ -148,15 +148,17 @@ torch.save(checkpoint, "data/MNIST/trained_model.pkl")
 # Plot reconstruction of the digits
 model.reset(batch_size=10)
 model.release_clamp()
-target = F.one_hot(torch.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), 10).float().to(device)
+target = F.one_hot(torch.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), 10).float().to(device) * 30
 recons = []
 for i in range(20):
     output = model(None)
     model.backward()
     recons.append(model.layers.input.state.cpu().reshape(10, 28, 28))
-fig, axes = plt.subplots(nrows=10, ncols=20, figsize=(20, 20))
+fig, axes = plt.subplots(nrows=10, ncols=20, figsize=(20, 10))
 for i, r in enumerate(recons):
     for j in range(10):
-        axes[j][i].imshow(r[j])
+        axes[j][i].imshow(r[j], vmin=0, vmax=1)
+        axes[j][i].axis('off')
+    axes[0][i].set_title(f"{i:02d}")
 plt.tight_layout()
 plt.savefig("mnist_reconstructions.png")
