@@ -74,19 +74,19 @@ class PCModel(nn.Module):
             )
         )
 
-        # # Apply frequency scaling to the top-down weights
-        # self.layers.lex.td_weights.set_(
-        #     (self.layers.lex.td_weights + torch.tensor(weights.freq[:, None])).float()
-        #     * (self.layers.lex.td_weights > 0)
-        # )
-        # self.layers.sem.td_weights.set_(
-        #     (self.layers.sem.td_weights + torch.tensor(weights.freq[None, :])).float()
-        #     * (self.layers.sem.td_weights > 0)
-        # )
-        # self.layers.ctx.td_weights.set_(
-        #     (self.layers.ctx.td_weights + torch.tensor(weights.freq[:, None])).float()
-        #     * (self.layers.ctx.td_weights > 0)
-        # )
+        # Apply frequency scaling to the top-down weights
+        self.layers.lex.td_weights.set_(
+            (self.layers.lex.td_weights + torch.tensor(weights.freq[:, None])).float()
+            * (self.layers.lex.td_weights > 0)
+        )
+        self.layers.sem.td_weights.set_(
+            (self.layers.sem.td_weights + torch.tensor(weights.freq[None, :])).float()
+            * (self.layers.sem.td_weights > 0)
+        )
+        self.layers.ctx.td_weights.set_(
+            (self.layers.ctx.td_weights + torch.tensor(weights.freq[:, None])).float()
+            * (self.layers.ctx.td_weights > 0)
+        )
 
     def reset(self, batch_size=None):
         """Set the values of the units to their initial state.
@@ -165,16 +165,14 @@ class PCModel(nn.Module):
             output = self.layers[-1](prederr[-1])
 
             # Backward pass
-            rec = self.layers[-1].backward()
+            rec = self.layers[-1].backward(normalize=True)
             for layer in self.layers[-2:0:-1]:
-                rec = layer.backward(rec)
+                rec = layer.backward(rec, normalize=True)
             self.layers[0].backward(rec)
 
             # Update weights
             if train_weights:
                 self.layers.lex.train_weights(prederr[0])
-                # for layer, err in zip(self.layers[1:], prederr):
-                #     layer.train_weights(err)
 
         return output
 

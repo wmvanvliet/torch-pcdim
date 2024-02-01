@@ -3,7 +3,7 @@
 A model can be assembled by stacking an ``InputLayer``, as many ``PCLayer``s as needed
 (can be zero) and finally an ``OutputLayer``.
 
-These module define both a ``forward`` and ``backward`` method. First, the ``forward``
+These modules define both a ``forward`` and ``backward`` method. First, the ``forward``
 methods should be called in sequence, followed by calling all the ``backward`` methods
 in reverse sequence.
 """
@@ -73,6 +73,10 @@ class MiddleLayer(nn.Module):
         self.register_parameter(
             "td_weights", nn.Parameter(td_weights, requires_grad=False)
         )
+        normalizer = 1 / (self.td_weights.sum(axis=1, keepdims=True) + 1)
+        self.register_parameter(
+            "normalizer", nn.Parameter(normalizer, requires_grad=False)
+        )
 
     def reset(self, batch_size=None):
         """Set the values of the units to their initial state.
@@ -107,16 +111,15 @@ class MiddleLayer(nn.Module):
             The bottom-up error that needs to propagate to the next layer.
         """
         if not self.clamped:
-            normalizer = 1 / (self.td_weights.sum(axis=1, keepdims=True) + 1)
             self.state = torch.maximum(self.eps_2, self.state) * (
-                (bu_err @ (normalizer * self.td_weights).T)
-                + (normalizer.T * self.td_err)
+                (bu_err @ (self.normalizer * self.td_weights).T)
+                + (self.normalizer.T * self.td_err)
             )
         self.bu_err = self.state / torch.maximum(self.eps_1, self.reconstruction)
         self.td_err = self.reconstruction / torch.maximum(self.eps_1, self.state)
         return self.bu_err
 
-    def backward(self, reconstruction):
+    def backward(self, reconstruction, normalize=False):
         """Back-propagate the reconstruction.
 
         Parameters
@@ -124,6 +127,9 @@ class MiddleLayer(nn.Module):
         reconstruction : tensor (bathc_size, n_units)
             The reconstruction of the state of the units in this layer that was computed
             and then back-propagated from the next layer.
+        normalize : bool
+            Whether to normalize the weights before computing the backwards
+            reconstruction.
 
         Returns
         -------
@@ -132,9 +138,10 @@ class MiddleLayer(nn.Module):
             that needs to be back-propagated.
         """
         self.reconstruction = reconstruction
-        # normalizer = 1 / (self.td_weights.sum(axis=1, keepdims=True) + 1)
-        normalizer = 1
-        return self.state @ (normalizer * self.td_weights)
+        if normalize:
+            return self.state @ (self.normalizer * self.td_weights)
+        else:
+            return self.state @ self.td_weights
 
     def clamp(self, state):
         """Clamp the units to a predefined state.
@@ -166,6 +173,7 @@ class MiddleLayer(nn.Module):
         delta = 1 + lr * delta
         weights = torch.clamp(self.td_weights * delta, 0, 1)
         self.td_weights.set_(weights)
+        self.normalizer.set_(1 / (self.td_weights.sum(axis=1, keepdims=True) + 1))
 
 
 class InputLayer(nn.Module):
@@ -322,6 +330,10 @@ class OutputLayer(nn.Module):
         self.register_parameter(
             "td_weights", nn.Parameter(td_weights, requires_grad=False)
         )
+        normalizer = 1 / (self.td_weights.sum(axis=1, keepdims=True))
+        self.register_parameter(
+            "normalizer", nn.Parameter(normalizer, requires_grad=False)
+        )
 
     def reset(self, batch_size=None):
         """Set the values of the units to their initial state.
@@ -351,13 +363,12 @@ class OutputLayer(nn.Module):
             The new state of the units in this layer. This is the output of the model.
         """
         if not self.clamped:
-            normalizer = 1 / (self.td_weights.sum(axis=1, keepdims=True) + 0)
             self.state = torch.maximum(self.eps_2, self.state) * (
-                bu_err @ (normalizer * self.td_weights).T
+                bu_err @ (self.normalizer * self.td_weights).T
             )
         return self.state
 
-    def backward(self):
+    def backward(self, normalize=False):
         """Back-propagate the reconstruction.
 
         Returns
@@ -365,10 +376,14 @@ class OutputLayer(nn.Module):
         reconstruction : tensor (n_in, batch_size)
             The reconstruction of the state of the units in the previous layer
             that needs to be back-propagated.
+        normalize : bool
+            Whether to normalize the weights before computing the backwards
+            reconstruction.
         """
-        # normalizer = 1 / (self.td_weights.sum(axis=1, keepdims=True) + 0)
-        normalizer = 1
-        return self.state @ (normalizer * self.td_weights)
+        if normalize:
+            return self.state @ (self.normalizer * self.td_weights)
+        else:
+            return self.state @ self.td_weights
 
     def clamp(self, state):
         """Clamp the units to a predefined state.
@@ -400,6 +415,7 @@ class OutputLayer(nn.Module):
         delta = 1 + lr * delta
         weights = torch.clamp(self.td_weights * delta, 0, 1)
         self.td_weights.set_(weights)
+        self.normalizer.set_(1 / (self.td_weights.sum(axis=1, keepdims=True)))
 
 
 class PCModel(nn.Module):
