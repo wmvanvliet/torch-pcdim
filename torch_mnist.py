@@ -8,6 +8,7 @@ from tqdm import tqdm
 
 from torch_predcoding import (
     ConvLayer,
+    MaxPoolLayer,
     FlattenLayer,
     InputLayer,
     MiddleLayer,
@@ -133,7 +134,6 @@ if use_cuda:
 
 transform = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Lambda(lambda x: torch.tile(x, (3, 1, 1)))
 ])
 
 dataset1 = datasets.MNIST("./data", train=True, download=True, transform=transform)
@@ -144,25 +144,28 @@ test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
 # Build and train the model
 model = PCModel(
     [
-        InputLayer(n_units=(3, 28, 28)),
+        InputLayer(n_units=(1, 28, 28), batch_size=512),
         ConvLayer(
-            n_in_channels=3,
-            n_out_channels=64,
+            n_in_channels=1,
+            n_out_channels=16,
             kernel_size=3,
             in_width=28,
             batch_size=512,
             padding=1,
         ),
-        FlattenLayer((64, 28, 28), 512),
-        OutputLayer(n_in=50176, n_units=10),
+        # MaxPoolLayer(kernel_size=2, batch_size=512),
+        # FlattenLayer((16, 14, 14), batch_size=512),
+        # OutputLayer(n_in=16 * 14 * 14, n_units=10, batch_size=512),
+        FlattenLayer((16, 28, 28), batch_size=512),
+        OutputLayer(n_in=16 * 28 * 28, n_units=10, batch_size=512),
     ]
 ).to(device)
 lr = args.lr
 for epoch in range(args.epochs):
-    if epoch % args.step_down == 0:
+    if (epoch + 1) % args.step_down == 0:
         lr /= 10
-    train(args, model, device, train_loader, epoch, n_iter=10, freq=5, lr=lr)
-    test(model, device, test_loader, n_iter=10)
+    train(args, model, device, train_loader, epoch, n_iter=20, freq=10, lr=lr)
+    test(model, device, test_loader, n_iter=20)
 
 # Save trained model
 checkpoint = dict(args.__dict__)

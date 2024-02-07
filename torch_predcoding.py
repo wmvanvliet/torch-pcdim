@@ -239,6 +239,77 @@ class ConvLayer(nn.Module):
         self.normalizer = 1 / (self.bu_weights_flat.sum(axis=1, keepdims=True) + 1)
 
 
+class MaxPoolLayer(nn.Module):
+    """A predictive-coding layer that performs a max-pool operation.
+
+    Parameters
+    ----------
+    kernel_size : int
+        How large the patch is that should be max-pooled over.
+    batch_size : int
+        The number of inputs we compute per batch.
+    """
+
+    def __init__(self, kernel_size, batch_size):
+        super().__init__()
+        self.kernel_size = kernel_size
+        self.batch_size = batch_size
+
+    def forward(self, bu_err):
+        """Flatten and propagate prediction error forward.
+
+        Parameters
+        ----------
+        bu_err : tensor (batch_size, channels, original_width, original_height)
+            The bottom-up error computed in the previous layer.
+
+        Returns
+        -------
+        bu_err : tensor (batch_size, channels, reduced_width, reduced_height)
+            The bottom-up error that needs to propagate to the next layer.
+        """
+        bu_err, self.idxs = F.max_pool2d(bu_err, self.kernel_size, return_indices=True)
+        return bu_err
+
+    def backward(self, reconstruction):
+        """Un-flatten and back-propagate the reconstruction.
+
+        Parameters
+        ----------
+        reconstruction : tensor (batch_size, channels, reduced_width, reduced_height)
+            The reconstruction back-propagated from the next layer.
+
+        Returns
+        -------
+        reconstruction : tensor (batch_size, channels, original_width, original_height)
+            The reconstruction of the state of the units in the previous layer
+            that needs to be back-propagated.
+        """
+        return F.max_unpool2d(reconstruction, self.idxs, self.kernel_size)
+
+    def reset(self, batch_size=None):
+        """Set the values of the units to their initial state.
+
+        Parameters
+        ----------
+        batch_size : int | None
+            Optionally you can change the batch size to use from now on.
+        """
+        return
+
+    def train_weights(self, bu_err, lr=0.01):
+        """Perform a training step, updating the weights.
+
+        Parameters
+        ----------
+        bu_err : tensor (batch_size, n_in)
+            The bottom-up error computed in the previous layer.
+        lr : float
+            The learning rate
+        """
+        return
+
+
 class FlattenLayer(nn.Module):
     """A predictive-coding layer that performs a flattening operation.
 
