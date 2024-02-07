@@ -6,7 +6,14 @@ import torch.nn.functional as F
 from torchvision import datasets, transforms
 from tqdm import tqdm
 
-from torch_predcoding import PCModel
+from torch_predcoding import (
+    ConvLayer,
+    FlattenLayer,
+    InputLayer,
+    MiddleLayer,
+    OutputLayer,
+    PCModel,
+)
 
 
 def train(args, model, device, train_loader, epoch, n_iter=20, freq=5, lr=0.01):
@@ -14,14 +21,14 @@ def train(args, model, device, train_loader, epoch, n_iter=20, freq=5, lr=0.01):
     for batch_idx, (data, target) in tqdm(
         enumerate(train_loader), total=len(train_loader), unit="batches"
     ):
-        data = data.view(-1, 28 * 28).to(device)
+        data = data.to(device)
         target = F.one_hot(target, 10).float().to(device)
         model.reset(batch_size=len(data))
         model.clamp(data, target)
         for i in range(n_iter):
             model(data)
             model.backward()
-            if i % freq == 0:
+            if (i + 1) % freq == 0:
                 model.train_weights(data, lr=lr)
     model.release_clamp()
 
@@ -32,12 +39,12 @@ def test(model, device, test_loader, n_iter=20):
     correct = 0
     with torch.no_grad():
         for data, target in test_loader:
-            data = data.view(-1, 28 * 28).to(device)
+            data = data.to(device)
             target = target.to(device)
             model.release_clamp()
             model.reset(batch_size=len(data))
             for _ in range(n_iter):
-                output = model(data.view(-1, 28 * 28))
+                output = model(data)
                 model.backward()
             test_loss += F.nll_loss(
                 F.log_softmax(output, dim=1), target, reduction="sum"
@@ -50,7 +57,6 @@ def test(model, device, test_loader, n_iter=20):
     test_loss /= len(test_loader.dataset)
 
     print(
-        "\nTest set performance:"
         "Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
             test_loss,
             correct,
@@ -125,20 +131,38 @@ if use_cuda:
     train_kwargs.update(cuda_kwargs)
     test_kwargs.update(cuda_kwargs)
 
-transform = transforms.ToTensor()
+transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Lambda(lambda x: torch.tile(x, (3, 1, 1)))
+])
+
 dataset1 = datasets.MNIST("./data", train=True, download=True, transform=transform)
 dataset2 = datasets.MNIST("./data", train=False, transform=transform)
 train_loader = torch.utils.data.DataLoader(dataset1, **train_kwargs)
 test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
 
 # Build and train the model
-model = PCModel(n_units=[28 * 28, 300, 100, 10]).to(device)
+model = PCModel(
+    [
+        InputLayer(n_units=(3, 28, 28)),
+        ConvLayer(
+            n_in_channels=3,
+            n_out_channels=64,
+            kernel_size=3,
+            in_width=28,
+            batch_size=512,
+            padding=1,
+        ),
+        FlattenLayer((64, 28, 28), 512),
+        OutputLayer(n_in=50176, n_units=10),
+    ]
+).to(device)
 lr = args.lr
 for epoch in range(args.epochs):
     if epoch % args.step_down == 0:
         lr /= 10
-    train(args, model, device, train_loader, epoch, n_iter=100, freq=10, lr=lr)
-    test(model, device, test_loader, n_iter=20)
+    train(args, model, device, train_loader, epoch, n_iter=10, freq=5, lr=lr)
+    test(model, device, test_loader, n_iter=10)
 
 # Save trained model
 checkpoint = dict(args.__dict__)
@@ -148,7 +172,8 @@ torch.save(checkpoint, "data/MNIST/trained_model.pkl")
 # Plot reconstruction of the digits
 model.reset(batch_size=10)
 model.release_clamp()
-target = F.one_hot(torch.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), 10).float().to(device) * 30
+target = F.one_hot(torch.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), 10).float().to(device)
+model.clamp(output_data=target)
 recons = []
 for i in range(20):
     output = model(None)
@@ -158,7 +183,7 @@ fig, axes = plt.subplots(nrows=10, ncols=20, figsize=(20, 10))
 for i, r in enumerate(recons):
     for j in range(10):
         axes[j][i].imshow(r[j], vmin=0, vmax=1)
-        axes[j][i].axis('off')
+        axes[j][i].axis("off")
     axes[0][i].set_title(f"{i:02d}")
 plt.tight_layout()
 plt.savefig("mnist_reconstructions.png")
