@@ -268,7 +268,7 @@ class MaxPoolLayer(nn.Module):
         bu_err : tensor (batch_size, channels, reduced_width, reduced_height)
             The bottom-up error that needs to propagate to the next layer.
         """
-        bu_err, self.idxs = F.max_pool2d(bu_err, self.kernel_size, return_indices=True)
+        bu_err = F.avg_pool2d(bu_err, self.kernel_size)
         return bu_err
 
     def backward(self, reconstruction):
@@ -285,7 +285,7 @@ class MaxPoolLayer(nn.Module):
             The reconstruction of the state of the units in the previous layer
             that needs to be back-propagated.
         """
-        return F.max_unpool2d(reconstruction, self.idxs, self.kernel_size)
+        return F.interpolate(reconstruction, scale_factor=self.kernel_size)
 
     def reset(self, batch_size=None):
         """Set the values of the units to their initial state.

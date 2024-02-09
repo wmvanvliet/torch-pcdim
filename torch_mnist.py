@@ -93,9 +93,9 @@ parser.add_argument(
 parser.add_argument(
     "--lr",
     type=float,
-    default=0.01,
+    default=0.001,
     metavar="LR",
-    help="initial learning rate (default: 0.01)",
+    help="initial learning rate (default: 0.001)",
 )
 parser.add_argument(
     "--step-down",
@@ -153,18 +153,16 @@ model = PCModel(
             batch_size=512,
             padding=1,
         ),
-        # MaxPoolLayer(kernel_size=2, batch_size=512),
-        # FlattenLayer((16, 14, 14), batch_size=512),
-        # OutputLayer(n_in=16 * 14 * 14, n_units=10, batch_size=512),
-        FlattenLayer((16, 28, 28), batch_size=512),
-        OutputLayer(n_in=16 * 28 * 28, n_units=10, batch_size=512),
+        MaxPoolLayer(kernel_size=2, batch_size=512),
+        FlattenLayer((16, 14, 14), batch_size=512),
+        OutputLayer(n_in=16 * 14 * 14, n_units=10, batch_size=512),
     ]
 ).to(device)
 lr = args.lr
 for epoch in range(args.epochs):
     if (epoch + 1) % args.step_down == 0:
         lr /= 10
-    train(args, model, device, train_loader, epoch, n_iter=20, freq=10, lr=lr)
+    train(args, model, device, train_loader, epoch, n_iter=100, freq=10, lr=lr)
     test(model, device, test_loader, n_iter=20)
 
 # Save trained model
