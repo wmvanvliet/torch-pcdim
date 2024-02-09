@@ -148,10 +148,10 @@ model = PCModel(
         ConvLayer(
             n_in_channels=1,
             n_out_channels=16,
-            kernel_size=3,
+            kernel_size=5,
             in_width=28,
             batch_size=512,
-            padding=1,
+            padding=2,
         ),
         MaxPoolLayer(kernel_size=2, batch_size=512),
         FlattenLayer((16, 14, 14), batch_size=512),
