@@ -184,17 +184,6 @@ class ConvLayer(nn.Module):
             weights = self.normalizer[:, :, None, None] * self.bu_weights
         else:
             weights = self.bu_weights
-        # state_flat = F.unfold(
-        #     self.state,
-        #     kernel_size=self.kernel_size,
-        #     padding=self.padding,
-        #     stride=self.stride,
-        #     dilation=self.dilation,
-        # )
-        # reconstruction_flat = weights @ state_flat
-        # reconstruction = reconstruction_flat.reshape(
-        #     self.batch_size, self.n_in_channels, self.in_width, self.in_width
-        # )
         reconstruction = F.conv_transpose2d(
             self.state,
             weights,
