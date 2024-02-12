@@ -144,18 +144,18 @@ test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
 # Build and train the model
 model = PCModel(
     [
-        InputLayer(n_units=(1, 28, 28), batch_size=512),
+        InputLayer(n_units=(1, 28, 28), batch_size=args.batch_size),
         ConvLayer(
             n_in_channels=1,
             n_out_channels=16,
             kernel_size=5,
             in_width=28,
-            batch_size=512,
+            batch_size=args.batch_size,
             padding=2,
         ),
-        MaxPoolLayer(kernel_size=2, batch_size=512),
-        FlattenLayer((16, 14, 14), batch_size=512),
-        OutputLayer(n_in=16 * 14 * 14, n_units=10, batch_size=512),
+        MaxPoolLayer(kernel_size=2, batch_size=args.batch_size),
+        FlattenLayer((16, 14, 14), batch_size=args.batch_size),
+        OutputLayer(n_in=16 * 14 * 14, n_units=10, batch_size=args.batch_size),
     ]
 ).to(device)
 lr = args.lr
