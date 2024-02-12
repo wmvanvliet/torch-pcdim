@@ -139,21 +139,24 @@ class ConvLayer(nn.Module):
             The bottom-up error that needs to propagate to the next layer.
         """
         if not self.clamped:
-            bu_err_flat = F.unfold(
+            # bu_err_flat = F.unfold(
+            #     bu_err,
+            #     kernel_size=self.kernel_size,
+            #     padding=self.padding,
+            #     stride=self.stride,
+            #     dilation=self.dilation,
+            # )
+            # bu_update = (self.normalizer * self.bu_weights_flat) @ bu_err_flat
+            update = F.conv2d(
                 bu_err,
-                kernel_size=self.kernel_size,
+                self.bu_weights,
                 padding=self.padding,
                 stride=self.stride,
                 dilation=self.dilation,
             )
-            bu_update = (self.normalizer * self.bu_weights_flat) @ bu_err_flat
-            # print(bu_update.min(), bu_update.max())
-            td_update = self.normalizer[None, :, :, None] * self.td_err
-            # print(td_update.min(), td_update.max())
-            self.state = torch.maximum(self.eps_2, self.state) * (
-                bu_update.view_as(self.state) + td_update
-            )
-            # print(self.state.min(), self.state.max())
+            update += self.td_err
+            update *= self.normalizer[None, :, :, None]
+            self.state = torch.maximum(self.eps_2, self.state) * update
         self.bu_err = self.state / torch.maximum(self.eps_1, self.reconstruction)
         self.td_err = self.reconstruction / torch.maximum(self.eps_1, self.state)
         return self.bu_err
@@ -177,19 +180,27 @@ class ConvLayer(nn.Module):
             that needs to be back-propagated.
         """
         self.reconstruction = reconstruction
-        weights = self.td_weights_flat
         if normalize:
-            weights = self.normalizer * self.td_weights_flat
-        state_flat = F.unfold(
+            weights = self.normalizer[:, :, None, None] * self.bu_weights
+        else:
+            weights = self.bu_weights
+        # state_flat = F.unfold(
+        #     self.state,
+        #     kernel_size=self.kernel_size,
+        #     padding=self.padding,
+        #     stride=self.stride,
+        #     dilation=self.dilation,
+        # )
+        # reconstruction_flat = weights @ state_flat
+        # reconstruction = reconstruction_flat.reshape(
+        #     self.batch_size, self.n_in_channels, self.in_width, self.in_width
+        # )
+        reconstruction = F.conv_transpose2d(
             self.state,
-            kernel_size=self.kernel_size,
+            weights,
             padding=self.padding,
             stride=self.stride,
             dilation=self.dilation,
-        )
-        reconstruction_flat = weights @ state_flat
-        reconstruction = reconstruction_flat.reshape(
-            self.batch_size, self.n_in_channels, self.in_width, self.in_width
         )
         return reconstruction
 
