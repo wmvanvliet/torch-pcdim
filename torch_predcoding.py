@@ -146,7 +146,7 @@ class ConvLayer(nn.Module):
             #     stride=self.stride,
             #     dilation=self.dilation,
             # )
-            # bu_update = (self.normalizer * self.bu_weights_flat) @ bu_err_flat
+            # update = (self.normalizer * self.bu_weights_flat) @ bu_err_flat
             update = F.conv2d(
                 bu_err,
                 self.bu_weights,
@@ -180,6 +180,21 @@ class ConvLayer(nn.Module):
             that needs to be back-propagated.
         """
         self.reconstruction = reconstruction
+        # if normalize:
+        #     weights = self.normalizer * self.td_weights_flat
+        # else:
+        #     weights = self.td_weights_flat
+        # state_flat = F.unfold(
+        #     self.state,
+        #     kernel_size=self.kernel_size,
+        #     padding=self.padding,
+        #     stride=self.stride,
+        #     dilation=self.dilation,
+        # )
+        # reconstruction_flat = weights @ state_flat
+        # reconstruction = reconstruction_flat.reshape(
+        #     self.batch_size, self.n_in_channels, self.in_width, self.in_width
+        # )
         if normalize:
             weights = self.normalizer[:, :, None, None] * self.bu_weights
         else:
@@ -234,6 +249,7 @@ class ConvLayer(nn.Module):
         )
         td_weights = torch.clamp(self.td_weights * delta, 0, 1)
         self.td_weights.set_(td_weights)
+        self.td_weights_flat = td_weights.view(self.n_in_channels, -1)
         self.bu_weights = torch.rot90(td_weights.swapaxes(0, 1), 2, [2, 3])
         self.bu_weights_flat = self.bu_weights.reshape(self.n_out_channels, -1)
         self.normalizer = 1 / (self.bu_weights_flat.sum(axis=1, keepdims=True) + 1)
