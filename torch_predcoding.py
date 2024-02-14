@@ -140,22 +140,15 @@ class ConvLayer(nn.Module):
             The bottom-up error that needs to propagate to the next layer.
         """
         if not self.clamped:
-            # bu_err_flat = F.unfold(
-            #     bu_err,
-            #     kernel_size=self.kernel_size,
-            #     padding=self.padding,
-            #     stride=self.stride,
-            #     dilation=self.dilation,
-            # )
-            # update = (self.normalizer * self.bu_weights_flat) @ bu_err_flat
             update = F.conv2d(
                 bu_err,
-                self.bu_weights * self.normalizer[:, None, None, None],
+                self.bu_weights,
                 padding=self.padding,
                 stride=self.stride,
                 dilation=self.dilation,
             )
-            update += self.td_err * self.normalizer[None, :, None, None]
+            update += self.td_err
+            update *= self.normalizer[None, :, None, None]
             self.state = torch.maximum(self.eps_2, self.state) * update
         self.bu_err = self.state / torch.maximum(self.eps_1, self.reconstruction)
         self.td_err = self.reconstruction / torch.maximum(self.eps_1, self.state)
@@ -233,29 +226,30 @@ class ConvLayer(nn.Module):
         lr : float
             The learning rate
         """
-        # state_flat = F.unfold(
-        #     self.state,
-        #     kernel_size=self.kernel_size,
-        #     padding=self.padding,
-        #     stride=self.stride,
-        #     dilation=self.dilation,
-        # )
-        # bu_err_flat = bu_err.view(self.batch_size, self.n_in_channels, -1)
-        bu_err_flat = F.unfold(
-            bu_err,
+        state_flat = F.unfold(
+            self.state,
             kernel_size=self.kernel_size,
             padding=self.padding,
             stride=self.stride,
             dilation=self.dilation,
         )
-        state_flat = self.state.view(self.batch_size, self.n_out_channels, -1)
+        bu_err_flat = bu_err.view(self.batch_size, self.n_in_channels, -1)
+        # bu_err_flat = F.unfold(
+        #     bu_err,
+        #     kernel_size=self.kernel_size,
+        #     padding=self.padding,
+        #     stride=self.stride,
+        #     dilation=self.dilation,
+        # )
+        # state_flat = self.state.view(self.batch_size, self.n_out_channels, -1)
         delta_flat = (bu_err_flat @ state_flat.swapaxes(1, 2)).sum(axis=0)
         delta_flat /= torch.maximum(self.eps_2, state_flat.sum(axis=(0, 2)))[None, :]
         delta_flat = 1 + lr * delta_flat
         delta = delta_flat.view(
             self.n_in_channels, self.n_out_channels, self.kernel_size, self.kernel_size
         )
-        td_weights = torch.clamp(self.td_weights * delta, 0, 1)
+        # td_weights = torch.clamp(self.td_weights * delta, 0, 1)
+        td_weights = self.td_weights * delta
         self.td_weights.set_(td_weights)
         self.td_weights_flat = td_weights.view(self.n_in_channels, -1)
         self.bu_weights = torch.rot90(td_weights.swapaxes(0, 1), 2, [2, 3])
@@ -812,7 +806,8 @@ class OutputLayer(nn.Module):
         delta = self.state.T @ (bu_err - 1)
         delta /= torch.maximum(self.eps_2, self.state.sum(axis=0, keepdims=True)).T
         delta = 1 + lr * delta
-        weights = torch.clamp(self.td_weights * delta, 0, 1)
+        # weights = torch.clamp(self.td_weights * delta, 0, 1)
+        weights = self.td_weights * delta
         self.td_weights.set_(weights)
         self.normalizer.set_(1 / (self.td_weights.sum(axis=1, keepdims=True)))
 
