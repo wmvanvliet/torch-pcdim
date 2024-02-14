@@ -153,11 +153,11 @@ model = PCModel(
             in_width=28,
             batch_size=args.batch_size,
             padding=2,
-            bu_weights=checkpoint['state_dict']['hidden0.weight']
+            #bu_weights=checkpoint['state_dict']['hidden0.weight']
         ),
         MaxPoolLayer(kernel_size=2, batch_size=args.batch_size),
         FlattenLayer((16, 14, 14), batch_size=args.batch_size),
-        OutputLayer(n_in=16 * 14 * 14, n_units=10, batch_size=args.batch_size, td_weights=checkpoint['state_dict']['output.weight'].T),
+        OutputLayer(n_in=16 * 14 * 14, n_units=10, batch_size=args.batch_size) #, td_weights=checkpoint['state_dict']['output.weight'].T),
     ]
 ).to(device)
 lr = args.lr

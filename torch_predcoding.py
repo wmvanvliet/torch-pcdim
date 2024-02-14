@@ -233,14 +233,22 @@ class ConvLayer(nn.Module):
         lr : float
             The learning rate
         """
-        state_flat = F.unfold(
-            self.state,
+        # state_flat = F.unfold(
+        #     self.state,
+        #     kernel_size=self.kernel_size,
+        #     padding=self.padding,
+        #     stride=self.stride,
+        #     dilation=self.dilation,
+        # )
+        # bu_err_flat = bu_err.view(self.batch_size, self.n_in_channels, -1)
+        bu_err_flat = F.unfold(
+            bu_err,
             kernel_size=self.kernel_size,
             padding=self.padding,
             stride=self.stride,
             dilation=self.dilation,
         )
-        bu_err_flat = bu_err.view(self.batch_size, self.n_in_channels, -1)
+        state_flat = self.state.view(self.batch_size, self.n_out_channels, -1)
         delta_flat = (bu_err_flat @ state_flat.swapaxes(1, 2)).sum(axis=0)
         delta_flat /= torch.maximum(self.eps_2, state_flat.sum(axis=(0, 2)))[None, :]
         delta_flat = 1 + lr * delta_flat
