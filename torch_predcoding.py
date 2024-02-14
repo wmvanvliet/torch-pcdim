@@ -52,7 +52,7 @@ class ConvLayer(nn.Module):
         padding=0,
         stride=1,
         dilation=1,
-        td_weights=None,
+        bu_weights=None,
         eps_1=0.01,
         eps_2=0.0001,
     ):
@@ -83,11 +83,14 @@ class ConvLayer(nn.Module):
         self.register_buffer("bu_err", torch.zeros(self.shape))
 
         # Optionally initialize the weight matrices
-        if td_weights is None:
+        if bu_weights is None:
             td_weights = (
                 torch.rand(n_in_channels, n_out_channels, kernel_size, kernel_size)
                 * 0.1
             )
+            bu_weights = torch.rot90(td_weights.swapaxes(0, 1), 2, [2, 3])
+        else:
+            td_weights = torch.rot90(bu_weights.swapaxes(0, 1), 2, [2, 3])
         assert td_weights.shape == (
             n_in_channels,
             n_out_channels,
@@ -95,16 +98,14 @@ class ConvLayer(nn.Module):
             kernel_size,
         )
         td_weights_flat = td_weights.view(n_in_channels, -1)
-        bu_weights = torch.rot90(td_weights.swapaxes(0, 1), 2, [2, 3])
         bu_weights_flat = bu_weights.reshape(n_out_channels, -1)
+        normalizer = 1 / (bu_weights_flat.sum(axis=1) + 1)
         self.register_parameter(
             "td_weights", nn.Parameter(td_weights, requires_grad=False)
         )
         self.register_buffer("td_weights_flat", td_weights_flat)
         self.register_buffer("bu_weights", bu_weights)
         self.register_buffer("bu_weights_flat", bu_weights_flat)
-
-        normalizer = 1 / (self.bu_weights_flat.sum(axis=1, keepdims=True) + 1)
         self.register_buffer("normalizer", normalizer)
 
     def reset(self, batch_size=None):
@@ -149,13 +150,12 @@ class ConvLayer(nn.Module):
             # update = (self.normalizer * self.bu_weights_flat) @ bu_err_flat
             update = F.conv2d(
                 bu_err,
-                self.bu_weights,
+                self.bu_weights * self.normalizer[:, None, None, None],
                 padding=self.padding,
                 stride=self.stride,
                 dilation=self.dilation,
             )
-            update += self.td_err
-            update *= self.normalizer[None, :, :, None]
+            update += self.td_err * self.normalizer[None, :, None, None]
             self.state = torch.maximum(self.eps_2, self.state) * update
         self.bu_err = self.state / torch.maximum(self.eps_1, self.reconstruction)
         self.td_err = self.reconstruction / torch.maximum(self.eps_1, self.state)
@@ -196,7 +196,7 @@ class ConvLayer(nn.Module):
         #     self.batch_size, self.n_in_channels, self.in_width, self.in_width
         # )
         if normalize:
-            weights = self.normalizer[:, :, None, None] * self.bu_weights
+            weights = self.normalizer * self.bu_weights
         else:
             weights = self.bu_weights
         reconstruction = F.conv_transpose2d(
@@ -252,7 +252,7 @@ class ConvLayer(nn.Module):
         self.td_weights_flat = td_weights.view(self.n_in_channels, -1)
         self.bu_weights = torch.rot90(td_weights.swapaxes(0, 1), 2, [2, 3])
         self.bu_weights_flat = self.bu_weights.reshape(self.n_out_channels, -1)
-        self.normalizer = 1 / (self.bu_weights_flat.sum(axis=1, keepdims=True) + 1)
+        self.normalizer = 1 / (self.bu_weights_flat.sum(axis=1) + 1)
 
 
 class MaxPoolLayer(nn.Module):

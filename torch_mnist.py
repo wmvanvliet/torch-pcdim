@@ -141,6 +141,7 @@ dataset2 = datasets.MNIST("./data", train=False, transform=transform)
 train_loader = torch.utils.data.DataLoader(dataset1, **train_kwargs)
 test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
 
+checkpoint = torch.load("data/MNIST/trained_forward_model.pkl", map_location="cpu")
 # Build and train the model
 model = PCModel(
     [
@@ -152,13 +153,15 @@ model = PCModel(
             in_width=28,
             batch_size=args.batch_size,
             padding=2,
+            bu_weights=checkpoint['state_dict']['hidden0.weight']
         ),
         MaxPoolLayer(kernel_size=2, batch_size=args.batch_size),
         FlattenLayer((16, 14, 14), batch_size=args.batch_size),
-        OutputLayer(n_in=16 * 14 * 14, n_units=10, batch_size=args.batch_size),
+        OutputLayer(n_in=16 * 14 * 14, n_units=10, batch_size=args.batch_size, td_weights=checkpoint['state_dict']['output.weight'].T),
     ]
 ).to(device)
 lr = args.lr
+test(model, device, test_loader, n_iter=20)
 for epoch in range(args.epochs):
     if (epoch + 1) % args.step_down == 0:
         lr /= 10
