@@ -42,7 +42,7 @@ print("GPU memory usage:", torch.cuda.memory_allocated() / 1024 / 1024 / 1024, "
 preact_state = m.state_dict()  # designate this as the "standard" initialized model
 
 # Check whether the model outputs the correct words given the input
-accuracy = np.mean(out.cpu().numpy().argmax(axis=0) == np.arange(batch_size))
+accuracy = np.mean(out.cpu().numpy().argmax(axis=1) == np.arange(batch_size))
 print("Accuracy of the model:", accuracy)
 
 ##
