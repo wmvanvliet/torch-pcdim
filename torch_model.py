@@ -183,9 +183,7 @@ class PCModel(nn.Module):
 
             # Update weights
             if train_weights:
-                self.layers.lex.train_weights(prederr[0])
-                # for layer, err in zip(self.layers[1:], prederr):
-                #     layer.train_weights(err)
+                self.layers.lex.train_weights(prederr[0], lr=0.1)
 
         return output
 
