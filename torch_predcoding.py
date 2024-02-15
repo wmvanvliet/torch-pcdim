@@ -142,12 +142,13 @@ class ConvLayer(nn.Module):
         if not self.clamped:
             update = F.conv2d(
                 bu_err,
-                self.bu_weights * self.normalizer[:, None, None, None],
+                self.bu_weights,
                 padding=self.padding,
                 stride=self.stride,
                 dilation=self.dilation,
             )
-            update += self.td_err * self.normalizer[None, :, None, None]
+            update += self.td_err
+            update *= self.normalizer[None, :, None, None]
             self.state = torch.maximum(self.eps_2, self.state) * update
         self.bu_err = self.state / torch.maximum(self.eps_1, self.reconstruction)
         self.td_err = self.reconstruction / torch.maximum(self.eps_1, self.state)
@@ -232,9 +233,9 @@ class ConvLayer(nn.Module):
             stride=self.stride,
             dilation=self.dilation,
         )
-        bu_err_flat = bu_err.view(self.batch_size, self.n_in_channels, -1)
+        bu_err_flat = bu_err.view(self.batch_size, self.n_in_channels, -1) - 1
         # bu_err_flat = F.unfold(
-        #     bu_err,
+        #     bu_err - 1,
         #     kernel_size=self.kernel_size,
         #     padding=self.padding,
         #     stride=self.stride,

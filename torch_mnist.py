@@ -17,7 +17,7 @@ from torch_predcoding import (
 )
 
 
-def train(args, model, device, train_loader, epoch, n_iter=20, freq=5, lr=0.01):
+def train(args, model, device, train_loader, epoch, n_iter=100, freq=10, lr=0.001):
     model.train()
     for batch_idx, (data, target) in tqdm(
         enumerate(train_loader), total=len(train_loader), unit="batches"
@@ -165,8 +165,8 @@ test(model, device, test_loader, n_iter=20)
 for epoch in range(args.epochs):
     if (epoch + 1) % args.step_down == 0:
         lr /= 10
-    train(args, model, device, train_loader, epoch, n_iter=100, freq=5, lr=lr)
-    test(model, device, test_loader, n_iter=20)
+    train(args, model, device, train_loader, epoch, n_iter=100, freq=10, lr=lr)
+    test(model, device, test_loader, n_iter=100)
 
 # Save trained model
 checkpoint = dict(args.__dict__)
