@@ -57,21 +57,35 @@ class PCModel(nn.Module):
                     n_units=len(self.lex_units),
                     n_in=len(self.orth_units),
                     batch_size=batch_size,
+                    bu_weights=torch.as_tensor(self.weights.W_orth_lex).float().T,
                     td_weights=torch.as_tensor(self.weights.V_lex_orth).float().T,
                 ),
                 sem=MiddleLayer(
                     n_units=len(self.sem_units),
                     n_in=len(self.lex_units),
                     batch_size=batch_size,
+                    bu_weights=torch.as_tensor(self.weights.W_lex_sem).float().T,
                     td_weights=torch.as_tensor(self.weights.V_sem_lex).float().T,
                 ),
                 ctx=OutputLayer(
                     n_in=len(self.sem_units),
                     n_units=len(self.ctx_units),
                     batch_size=batch_size,
+                    bu_weights=torch.as_tensor(self.weights.W_sem_ctx).float().T,
                     td_weights=torch.as_tensor(self.weights.V_ctx_sem).float().T,
                 ),
             )
+        )
+
+        # Normalize top-down weights
+        self.layers.lex.td_weights.set_(
+            self.layers.lex.td_weights * self.layers.lex.normalizer.T
+        )
+        self.layers.sem.td_weights.set_(
+            self.layers.sem.td_weights * self.layers.sem.normalizer.T
+        )
+        self.layers.ctx.td_weights.set_(
+            self.layers.ctx.td_weights * self.layers.ctx.normalizer.T
         )
 
         # Apply frequency scaling to the top-down weights
@@ -141,17 +155,14 @@ class PCModel(nn.Module):
             self.layers.orth.release_clamp()
 
         if clamp_ctx is not None:
-            state_ctx = (
-                torch.tensor(
-                    np.array(
-                        [
-                            get_lex_repr(word, self.lex_units, cloze_prob=cloze_prob)
-                            for word in clamp_ctx
-                        ]
-                    )
+            state_ctx = torch.tensor(
+                np.array(
+                    [
+                        get_lex_repr(word, self.lex_units, cloze_prob=cloze_prob)
+                        for word in clamp_ctx
+                    ]
                 )
-                .float()
-            )
+            ).float()
             state_ctx = state_ctx.to(self.device)
             self.layers.ctx.clamp(state_ctx)
         else:
@@ -165,14 +176,16 @@ class PCModel(nn.Module):
             output = self.layers[-1](prederr[-1])
 
             # Backward pass
-            rec = self.layers[-1].backward(normalize=True)
+            rec = self.layers[-1].backward()
             for layer in self.layers[-2:0:-1]:
-                rec = layer.backward(rec, normalize=True)
+                rec = layer.backward(rec)
             self.layers[0].backward(rec)
 
             # Update weights
             if train_weights:
                 self.layers.lex.train_weights(prederr[0])
+                # for layer, err in zip(self.layers[1:], prederr):
+                #     layer.train_weights(err)
 
         return output
 
