@@ -77,6 +77,17 @@ class PCModel(nn.Module):
             )
         )
 
+        # Normalize top-down weights
+        self.layers.lex.td_weights.set_(
+            self.layers.lex.td_weights * self.layers.lex.normalizer.T
+        )
+        self.layers.sem.td_weights.set_(
+            self.layers.sem.td_weights * self.layers.sem.normalizer.T
+        )
+        self.layers.ctx.td_weights.set_(
+            self.layers.ctx.td_weights * self.layers.ctx.normalizer.T
+        )
+
         # Apply frequency scaling to the top-down weights
         self.layers.lex.td_weights.set_(
             (self.layers.lex.td_weights + torch.tensor(weights.freq[:, None])).float()
@@ -144,17 +155,14 @@ class PCModel(nn.Module):
             self.layers.orth.release_clamp()
 
         if clamp_ctx is not None:
-            state_ctx = (
-                torch.tensor(
-                    np.array(
-                        [
-                            get_lex_repr(word, self.lex_units, cloze_prob=cloze_prob)
-                            for word in clamp_ctx
-                        ]
-                    )
+            state_ctx = torch.tensor(
+                np.array(
+                    [
+                        get_lex_repr(word, self.lex_units, cloze_prob=cloze_prob)
+                        for word in clamp_ctx
+                    ]
                 )
-                .float()
-            )
+            ).float()
             state_ctx = state_ctx.to(self.device)
             self.layers.ctx.clamp(state_ctx)
         else:
