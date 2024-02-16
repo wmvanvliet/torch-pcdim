@@ -61,15 +61,15 @@ class PCModel:
         weights.V_ctx_sem = weights.V_ctx_sem @ weights.I_sem_ctx
 
         # Apply frequency scaling to the top-down weights
-        # weights.V_lex_orth = (weights.V_lex_orth + weights.freq[None, :]) * (
-        #     weights.V_lex_orth > 0
-        # )
-        # weights.V_sem_lex = (weights.V_sem_lex + weights.freq[:, None]) * (
-        #     weights.V_sem_lex > 0
-        # )
-        # weights.V_ctx_sem = (weights.V_ctx_sem + weights.freq[None, :]) * (
-        #     weights.V_ctx_sem > 0
-        # )
+        weights.V_lex_orth = (weights.V_lex_orth + weights.freq[None, :]) * (
+            weights.V_lex_orth > 0
+        )
+        weights.V_sem_lex = (weights.V_sem_lex + weights.freq[:, None]) * (
+            weights.V_sem_lex > 0
+        )
+        weights.V_ctx_sem = (weights.V_ctx_sem + weights.freq[None, :]) * (
+            weights.V_ctx_sem > 0
+        )
 
         self.weights = weights
 

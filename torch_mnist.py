@@ -8,13 +8,13 @@ from tqdm import tqdm
 
 from torch_predcoding import (
     ConvLayer,
-    MaxPoolLayer,
+    AvgPoolLayer,
     FlattenLayer,
     InputLayer,
     MiddleLayer,
     OutputLayer,
-    PCModel,
 )
+from torch_model import PCModel
 
 
 def train(args, model, device, train_loader, epoch, n_iter=100, freq=10, lr=0.001):
@@ -155,7 +155,7 @@ model = PCModel(
             padding=2,
             # bu_weights=checkpoint['state_dict']['hidden0.weight']
         ),
-        MaxPoolLayer(kernel_size=2, batch_size=args.batch_size),
+        AvgPoolLayer(kernel_size=2, batch_size=args.batch_size),
         FlattenLayer((16, 14, 14), batch_size=args.batch_size),
         OutputLayer(n_in=16 * 14 * 14, n_units=10, batch_size=args.batch_size), #, td_weights=checkpoint['state_dict']['output.weight'].T),
     ]

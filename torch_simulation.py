@@ -12,7 +12,7 @@ import torch
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-from torch_model import PCModel  # GPU model
+from torch_model import N400Model  # GPU model
 from weights_nour_eddine_2023 import get_weights
 
 # Make sure to set this to where you've downloaded Samer's data package to.
@@ -25,7 +25,7 @@ batch_size = 512
 
 # Instantiate the model
 weights = get_weights(data_path)
-m = PCModel(weights, batch_size=batch_size).cuda()
+m = N400Model(weights, batch_size=batch_size).cuda()
 init_state = m.state_dict()
 
 # Grab the list of words in the experiment. We will use only the first 512 as inputs.

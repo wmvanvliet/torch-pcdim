@@ -3,12 +3,11 @@
 A model can be assembled by stacking an ``InputLayer``, as many ``PCLayer``s as needed
 (can be zero) and finally an ``OutputLayer``.
 
-These modules define both a ``forward`` and ``backward`` method. First, the ``forward``
+These module define both a ``forward`` and ``backward`` method. First, the ``forward``
 methods should be called in sequence, followed by calling all the ``backward`` methods
 in reverse sequence.
 """
 import math
-from collections import OrderedDict
 
 import torch
 from torch import nn
@@ -256,8 +255,21 @@ class ConvLayer(nn.Module):
         self.bu_weights_flat = self.bu_weights.reshape(self.n_out_channels, -1)
         self.normalizer = 1 / (self.bu_weights_flat.sum(axis=1) + 1)
 
+    def extra_repr(self):
+        """Get some additional information about this module.
 
-class MaxPoolLayer(nn.Module):
+        Returns
+        -------
+        out : str
+            Some extra information about this module.
+        """
+        return (
+            f"input_shape=({self.n_in_channels}, {self.in_width}, {self.in_width})"
+            f"out_shape=({self.n_out_channels}, {self.out_width}, {self.out_width})"
+        )
+
+
+class AvgPoolLayer(nn.Module):
     """A predictive-coding layer that performs a max-pool operation.
 
     Parameters
@@ -327,6 +339,16 @@ class MaxPoolLayer(nn.Module):
         """
         return
 
+    def extra_repr(self):
+        """Get some additional information about this module.
+
+        Returns
+        -------
+        out : str
+            Some extra information about this module.
+        """
+        return f"kernel_size={self.kernel_size}"
+
 
 class FlattenLayer(nn.Module):
     """A predictive-coding layer that performs a flattening operation.
@@ -343,7 +365,7 @@ class FlattenLayer(nn.Module):
         super().__init__()
         self.input_shape = input_shape
         self.batch_size = batch_size
-        self.shape = (batch_size,) + input_shape
+        self.shape = (batch_size, input_shape)
 
     def forward(self, bu_err):
         """Flatten and propagate prediction error forward.
@@ -386,7 +408,7 @@ class FlattenLayer(nn.Module):
         """
         if batch_size is not None:
             self.batch_size = batch_size
-            self.shape = (batch_size,) + self.input_shape
+            self.shape = (batch_size, self.input_shape)
 
     def train_weights(self, bu_err, lr=0.01):
         """Perform a training step, updating the weights.
@@ -399,6 +421,16 @@ class FlattenLayer(nn.Module):
             The learning rate
         """
         return
+
+    def extra_repr(self):
+        """Get some additional information about this module.
+
+        Returns
+        -------
+        out : str
+            Some extra information about this module.
+        """
+        return f"input_shape={self.input_shape}"
 
 
 class MiddleLayer(nn.Module):
@@ -414,7 +446,10 @@ class MiddleLayer(nn.Module):
         How many units in this layer.
     batch_size : int
         The number of inputs we compute per batch.
-    td_weights : tensor (n_units, n_in) | None
+    bu_weights : tensor (n_out, n_units) | None
+        The weight matrix used to propagate the error signal from the previous layer.
+        When not specified, a randomly initiated matrix will be used.
+    td_weights : tensor (n_in, n_units) | None
         The weight matrix used to back-propagate the prediction to the previous layer.
         When not specified, a randomly initiated matrix will be used.
     eps_1 : float
@@ -429,6 +464,7 @@ class MiddleLayer(nn.Module):
         n_in,
         n_units,
         batch_size=1,
+        bu_weights=None,
         td_weights=None,
         eps_1=0.01,
         eps_2=0.0001,
@@ -451,16 +487,22 @@ class MiddleLayer(nn.Module):
         self.register_buffer("bu_err", torch.zeros(self.shape))
 
         # Optionally initialize the weight matrices
+        if bu_weights is None:
+            bu_weights = torch.rand(n_in, n_units) * 0.1
         if td_weights is None:
             td_weights = torch.rand(n_units, n_in) * 0.1
+        assert bu_weights.shape == (n_in, n_units)
         assert td_weights.shape == (n_units, n_in)
+        self.register_parameter(
+            "bu_weights", nn.Parameter(bu_weights, requires_grad=False)
+        )
         self.register_parameter(
             "td_weights", nn.Parameter(td_weights, requires_grad=False)
         )
-        normalizer = 1 / (self.td_weights.sum(axis=1, keepdims=True) + 1)
-        self.register_parameter(
-            "normalizer", nn.Parameter(normalizer, requires_grad=False)
-        )
+
+        normalizer = 1 / (torch.sum(bu_weights, dim=0, keepdim=True) + 1)
+        self.register_buffer("normalizer", normalizer)
+        self.register_buffer("bu_weights_normalized", bu_weights * normalizer)
 
     def reset(self, batch_size=None):
         """Set the values of the units to their initial state.
@@ -495,14 +537,13 @@ class MiddleLayer(nn.Module):
         """
         if not self.clamped:
             self.state = torch.maximum(self.eps_2, self.state) * (
-                (bu_err @ (self.normalizer * self.td_weights).T)
-                + (self.normalizer.T * self.td_err)
+                (bu_err @ self.bu_weights_normalized) + (self.normalizer * self.td_err)
             )
         self.bu_err = self.state / torch.maximum(self.eps_1, self.reconstruction)
         self.td_err = self.reconstruction / torch.maximum(self.eps_1, self.state)
         return self.bu_err
 
-    def backward(self, reconstruction, normalize=False):
+    def backward(self, reconstruction):
         """Back-propagate the reconstruction.
 
         Parameters
@@ -510,9 +551,6 @@ class MiddleLayer(nn.Module):
         reconstruction : tensor (batch_size, n_units)
             The reconstruction of the state of the units in this layer that was computed
             and then back-propagated from the next layer.
-        normalize : bool
-            Whether to normalize the weights before computing the backwards
-            reconstruction.
 
         Returns
         -------
@@ -522,10 +560,7 @@ class MiddleLayer(nn.Module):
         """
         assert self.shape == reconstruction.shape
         self.reconstruction = reconstruction
-        if normalize:
-            return self.state @ (self.normalizer * self.td_weights)
-        else:
-            return self.state @ self.td_weights
+        return self.state @ self.td_weights
 
     def clamp(self, state):
         """Clamp the units to a predefined state.
@@ -551,14 +586,27 @@ class MiddleLayer(nn.Module):
         bu_err : tensor (batch_size, n_in)
             The bottom-up error computed in the previous layer.
         lr : float
-            The learning rate
+            The learning rate.
         """
         delta = self.state.T @ (bu_err - 1)
         delta /= torch.maximum(self.eps_2, self.state.sum(axis=0, keepdims=True)).T
         delta = 1 + lr * delta
-        weights = torch.clamp(self.td_weights * delta, 0, 1)
-        self.td_weights.set_(weights)
-        self.normalizer.set_(1 / (self.td_weights.sum(axis=1, keepdims=True) + 1))
+
+        td_weights = torch.clamp(self.td_weights * delta, 0, 1)
+        self.td_weights.set_(td_weights)
+        self.bu_weights.set_(self.td_weights.T)
+        self.normalizer = 1 / (torch.sum(self.bu_weights, dim=0, keepdim=True) + 1)
+        self.bu_weights_normalized = self.bu_weights * self.normalizer
+
+    def extra_repr(self):
+        """Get some additional information about this module.
+
+        Returns
+        -------
+        out : str
+            Some extra information about this module.
+        """
+        return f"n_in={self.n_in}, n_units={self.n_units}"
 
 
 class InputLayer(nn.Module):
@@ -674,6 +722,16 @@ class InputLayer(nn.Module):
         """Release any clamped state from the units."""
         self.clamped = False
 
+    def extra_repr(self):
+        """Get some additional information about this module.
+
+        Returns
+        -------
+        out : str
+            Some extra information about this module.
+        """
+        return f"shape={self.shape[1:]}"
+
 
 class OutputLayer(nn.Module):
     """A predictive-coding layer that is at the end of the stack.
@@ -688,7 +746,10 @@ class OutputLayer(nn.Module):
         How many units in this layer.
     batch_size : int
         The number of inputs we compute per batch.
-    td_weights : tensor (n_units, n_in) | None
+    bu_weights : tensor (n_out, n_units) | None
+        The weight matrix used to propagate the error signal from the previous layer.
+        When not specified, a randomly initiated matrix will be used.
+    td_weights : tensor (n_in, n_units) | None
         The weight matrix used to back-propagate the prediction to the previous layer.
         When not specified, a randomly initiated matrix will be used.
     eps_2 : float
@@ -700,6 +761,7 @@ class OutputLayer(nn.Module):
         n_in,
         n_units,
         batch_size=1,
+        bu_weights=None,
         td_weights=None,
         eps_2=0.0001,
     ):
@@ -715,16 +777,22 @@ class OutputLayer(nn.Module):
         self.register_buffer("state", (1 / self.n_units) * torch.ones(self.shape))
 
         # Optionally initialize the weight matrices
+        if bu_weights is None:
+            bu_weights = torch.rand(n_in, n_units) * 0.1
         if td_weights is None:
             td_weights = torch.rand(n_units, n_in) * 0.1
+        assert bu_weights.shape == (n_in, n_units)
         assert td_weights.shape == (n_units, n_in)
+        self.register_parameter(
+            "bu_weights", nn.Parameter(bu_weights, requires_grad=False)
+        )
         self.register_parameter(
             "td_weights", nn.Parameter(td_weights, requires_grad=False)
         )
-        normalizer = 1 / (self.td_weights.sum(axis=1, keepdims=True))
-        self.register_parameter(
-            "normalizer", nn.Parameter(normalizer, requires_grad=False)
-        )
+
+        normalizer = 1 / (torch.sum(bu_weights, dim=0, keepdim=True) + 1)
+        self.register_buffer("normalizer", normalizer)
+        self.register_buffer("bu_weights_normalized", bu_weights * normalizer)
 
     def reset(self, batch_size=None):
         """Set the values of the units to their initial state.
@@ -756,7 +824,7 @@ class OutputLayer(nn.Module):
         """
         if not self.clamped:
             self.state = torch.maximum(self.eps_2, self.state) * (
-                bu_err @ (self.normalizer * self.td_weights).T
+                bu_err @ self.bu_weights_normalized
             )
         return self.state
 
@@ -769,13 +837,10 @@ class OutputLayer(nn.Module):
             The reconstruction of the state of the units in the previous layer
             that needs to be back-propagated.
         normalize : bool
-            Whether to normalize the weights before computing the backwards
-            reconstruction.
+            Whether the normalize the top-down weights before computing the
+            reconstruction. This is done in Samer et al. 2023.
         """
-        if normalize:
-            return self.state @ (self.normalizer * self.td_weights)
-        else:
-            return self.state @ self.td_weights
+        return self.state @ self.td_weights
 
     def clamp(self, state):
         """Clamp the units to a predefined state.
@@ -806,122 +871,20 @@ class OutputLayer(nn.Module):
         delta = self.state.T @ (bu_err - 1)
         delta /= torch.maximum(self.eps_2, self.state.sum(axis=0, keepdims=True)).T
         delta = 1 + lr * delta
-        # weights = torch.clamp(self.td_weights * delta, 0, 1)
-        weights = self.td_weights * delta
-        self.td_weights.set_(weights)
-        self.normalizer.set_(1 / (self.td_weights.sum(axis=1, keepdims=True)))
 
+        td_weights = torch.clamp(self.td_weights * delta, 0, 1)
+        self.td_weights.set_(td_weights)
+        self.bu_weights.set_(td_weights.T)
 
-class PCModel(nn.Module):
-    """A full predictive coding model.
+        self.normalizer = 1 / torch.sum(self.bu_weights, dim=0, keepdim=True)
+        self.bu_weights_normalized = self.bu_weights * self.normalizer
 
-    Parameters
-    ----------
-    layers : list of torch.nn.Module
-        The layers making up this model. There should be at least two layers: the input
-        and output layers.
-    batch_size : int
-        The batch size used during operation of the model.
-    """
-
-    def __init__(self, layers, batch_size=64):
-        super().__init__()
-        self.batch_size = batch_size
-
-        assert len(layers) >= 2, "The model must have at least 2 layers (input/output)"
-        assert isinstance(layers[0], InputLayer)
-        assert isinstance(layers[-1], OutputLayer)
-        layer_names = (
-            ["input"] + [f"hidden{i}" for i in range(len(layers) - 2)] + ["output"]
-        )
-        self.layers = nn.Sequential(
-            OrderedDict([(name, layer) for name, layer in zip(layer_names, layers)])
-        )
-
-    def clamp(self, input_data=None, output_data=None):
-        """Clamp input/output units unto a given state.
-
-        Parameters
-        ----------
-        input_data: tensor (batch_size, n_in) | None
-            The data to be clamped to the input layer. If left at ``None``, do not clamp
-            the input layer to anything.
-        output_data: tensor (batch_size, n_out) | None
-            The data to be clamped to the output layer. If left at ``None``, do not
-            clamp the output layer to anything.
-        """
-        if input_data is not None:
-            self.layers.input.clamp(input_data)
-        if output_data is not None:
-            self.layers.output.clamp(output_data)
-
-    def release_clamp(self):
-        """Release any clamps on the input and output units."""
-        self.layers.input.release_clamp()
-        self.layers.output.release_clamp()
-
-    def forward(self, input_data=None):
-        """Perform a forward pass throught the model.
-
-        Parameters
-        ----------
-        input_data: tensor (batch_size, n_in) | None
-            The data to be clamped to the input layer during the forward pass. If left
-            at ``None``, do not clamp the input layer to anything.
+    def extra_repr(self):
+        """Get some additional information about this module.
 
         Returns
         -------
-        output_data: tensor (batch_size, n_out)
-            The state of the output units in the model.
+        out : str
+            Some extra information about this module.
         """
-        bu_err = self.layers.input(input_data)
-        for layer in self.layers[1:-1]:
-            bu_err = layer(bu_err)
-        output_data = self.layers.output(bu_err)
-        return output_data
-
-    def backward(self):
-        """Perform a backward pass through the model.
-
-        Returns
-        -------
-        reconstruction: tensor (batch_size, n_in)
-            The reconstruction of the input units made by the upper layers.
-        """
-        reconstruction = self.layers.output.backward()
-        for layer in self.layers[-2::-1]:
-            reconstruction = layer.backward(reconstruction)
-        return reconstruction
-
-    def train_weights(self, input_data, lr=0.01):
-        """Perform a training step, updating the weights.
-
-        For training to work properly, make sure to have the desired target output
-        clamped onto the output nodes before calling this.
-
-        Parameters
-        ----------
-        input_data: tensor (batch_size, n_in)
-            The data to be clamped to the input layer during the weight training pass.
-            If left at ``None``, do not clamp the input layer to anything.
-        lr : float
-            The learning rate to use when updating weights.
-        """
-        bu_errors = [self.layers.input(input_data)]
-        for layer in self.layers[1:-1]:
-            bu_errors.append(layer(bu_errors[-1]))
-        for layer, bu_err in zip(self.layers[1:], bu_errors):
-            layer.train_weights(bu_err, lr=lr)
-
-    def reset(self, batch_size=None):
-        """Reset the state of all units to small randomized values.
-
-        Parameters
-        ----------
-        batch_size : int | None
-            Optionally change the batch size used by the model.
-        """
-        if batch_size is not None:
-            self.batch_size = batch_size
-        for layer in self.layers:
-            layer.reset(batch_size)
+        return f"n_in={self.n_in}, n_units={self.n_units}"

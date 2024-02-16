@@ -13,7 +13,7 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm
 from datetime import datetime
 
-from torch_model import PCModel  # GPU model
+from torch_model import N400Model  # GPU model
 from weights_nour_eddine_2023 import get_weights
 
 # Make sure to set this to where you've downloaded Samer's data package to.
@@ -34,7 +34,7 @@ weights.W_orth_lex = torch.rand(*weights.W_orth_lex.shape) * 0.1
 weights.V_lex_orth = weights.W_orth_lex.T.clone()
 
 # Instantiate the model
-m = PCModel(weights, batch_size=training_batch_size).cuda()
+m = N400Model(weights, batch_size=training_batch_size).cuda()
 
 # Grab the list of words in the experiment. We will use only the first 512 as inputs,
 # but all of them for training.
