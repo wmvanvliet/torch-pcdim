@@ -169,9 +169,9 @@ class MiddleLayer(nn.Module):
         lr : float
             The learning rate.
         """
-        delta = self.state.T @ (bu_err - 1)
+        delta = self.state.T @ bu_err
         delta /= torch.maximum(self.eps_2, self.state.sum(axis=0, keepdims=True)).T
-        delta = 1 + lr * delta
+        delta = 1 + lr * (delta - 1)
 
         td_weights = torch.clamp(self.td_weights * delta, 0, 1)
         self.td_weights.set_(td_weights)
@@ -442,9 +442,9 @@ class OutputLayer(nn.Module):
         lr : float
             The learning rate.
         """
-        delta = self.state.T @ (bu_err - 1)
+        delta = self.state.T @ bu_err
         delta /= torch.maximum(self.eps_2, self.state.sum(axis=0, keepdims=True)).T
-        delta = 1 + lr * delta
+        delta = 1 + lr * (delta - 1)
 
         td_weights = torch.clamp(self.td_weights * delta, 0, 1)
         self.td_weights.set_(td_weights)
