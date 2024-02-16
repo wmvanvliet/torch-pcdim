@@ -135,9 +135,8 @@ test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
 model = PCModel(
     [
         InputLayer(n_units=28 * 28, batch_size=args.batch_size),
-        MiddleLayer(n_in=28 * 28, n_units=300, batch_size=args.batch_size),
-        MiddleLayer(n_in=300, n_units=100, batch_size=args.batch_size),
-        OutputLayer(n_in=100, n_units=10, batch_size=args.batch_size),
+        MiddleLayer(n_in=28 * 28, n_units=500, batch_size=args.batch_size),
+        OutputLayer(n_in=500, n_units=10, batch_size=args.batch_size),
     ]
 ).to(device)
 
