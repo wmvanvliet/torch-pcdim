@@ -232,9 +232,9 @@ class ConvLayer(nn.Module):
             stride=self.stride,
             dilation=self.dilation,
         )
-        bu_err_flat = bu_err.view(self.batch_size, self.n_in_channels, -1) - 1
+        bu_err_flat = bu_err.view(self.batch_size, self.n_in_channels, -1)
         # bu_err_flat = F.unfold(
-        #     bu_err - 1,
+        #     bu_err,
         #     kernel_size=self.kernel_size,
         #     padding=self.padding,
         #     stride=self.stride,
@@ -243,7 +243,7 @@ class ConvLayer(nn.Module):
         # state_flat = self.state.view(self.batch_size, self.n_out_channels, -1)
         delta_flat = (bu_err_flat @ state_flat.swapaxes(1, 2)).sum(axis=0)
         delta_flat /= torch.maximum(self.eps_2, state_flat.sum(axis=(0, 2)))[None, :]
-        delta_flat = 1 + lr * delta_flat
+        delta_flat = 1 + lr * (delta_flat - 1)
         delta = delta_flat.view(
             self.n_in_channels, self.n_out_channels, self.kernel_size, self.kernel_size
         )
@@ -588,9 +588,9 @@ class MiddleLayer(nn.Module):
         lr : float
             The learning rate.
         """
-        delta = self.state.T @ (bu_err - 1)
+        delta = self.state.T @ bu_err
         delta /= torch.maximum(self.eps_2, self.state.sum(axis=0, keepdims=True)).T
-        delta = 1 + lr * delta
+        delta = 1 + lr * (delta - 1)
 
         td_weights = torch.clamp(self.td_weights * delta, 0, 1)
         self.td_weights.set_(td_weights)
@@ -866,9 +866,9 @@ class OutputLayer(nn.Module):
         lr : float
             The learning rate.
         """
-        delta = self.state.T @ (bu_err - 1)
+        delta = self.state.T @ bu_err
         delta /= torch.maximum(self.eps_2, self.state.sum(axis=0, keepdims=True)).T
-        delta = 1 + lr * delta
+        delta = 1 + lr * (delta - 1)
 
         td_weights = torch.clamp(self.td_weights * delta, 0, 1)
         self.td_weights.set_(td_weights)
