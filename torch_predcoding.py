@@ -176,8 +176,6 @@ class MiddleLayer(nn.Module):
         td_weights = torch.clamp(self.td_weights * delta, 0, 1)
         self.td_weights.set_(td_weights)
         self.bu_weights.set_(self.td_weights.T)
-        self.normalizer = 1 / (torch.sum(self.bu_weights, dim=0, keepdim=True) + 1)
-        self.bu_weights_normalized = self.bu_weights * self.normalizer
 
         self.normalizer = 1 / (torch.sum(self.bu_weights, dim=0, keepdim=True) + 1)
         self.bu_weights_normalized = self.bu_weights * self.normalizer
