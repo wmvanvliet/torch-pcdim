@@ -311,7 +311,8 @@ class N400Model(PCModel):
 
         # Optionally update weights.
         if train_weights:
-            self.layers.lex.train_weights(state_orth, lr=1)
+            bu_err = self.layers.orth(state_orth)
+            self.layers.lex.train_weights(bu_err, lr=1)
 
         return output
 
