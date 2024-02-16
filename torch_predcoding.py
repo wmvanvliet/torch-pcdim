@@ -365,7 +365,7 @@ class FlattenLayer(nn.Module):
         super().__init__()
         self.input_shape = input_shape
         self.batch_size = batch_size
-        self.shape = (batch_size, input_shape)
+        self.shape = (batch_size,) + input_shape
 
     def forward(self, bu_err):
         """Flatten and propagate prediction error forward.
@@ -408,7 +408,7 @@ class FlattenLayer(nn.Module):
         """
         if batch_size is not None:
             self.batch_size = batch_size
-            self.shape = (batch_size, self.input_shape)
+            self.shape = (batch_size,) + self.input_shape
 
     def train_weights(self, bu_err, lr=0.01):
         """Perform a training step, updating the weights.
