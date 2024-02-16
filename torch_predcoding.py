@@ -159,21 +159,38 @@ class MiddleLayer(nn.Module):
         """Release any clamped state from the units."""
         self.clamped = False
 
-    def train_weights(self, bu_err):
+    def train_weights(self, bu_err, lr=0.01):
         """Perform a training step, updating the weights.
 
         Parameters
         ----------
         bu_err : tensor (batch_size, n_in)
             The bottom-up error computed in the previous layer.
+        lr : float
+            The learning rate.
         """
-        self.td_weights.set_(
-            torch.maximum(self.eps_2, self.td_weights)
-            * ((self.state.T @ bu_err) / self.state.sum(axis=0, keepdims=True).T)
-        )
+        delta = self.state.T @ (bu_err - 1)
+        delta /= torch.maximum(self.eps_2, self.state.sum(axis=0, keepdims=True)).T
+        delta = 1 + lr * delta
+
+        td_weights = torch.clamp(self.td_weights * delta, 0, 1)
+        self.td_weights.set_(td_weights)
         self.bu_weights.set_(self.td_weights.T)
         self.normalizer = 1 / (torch.sum(self.bu_weights, dim=0, keepdim=True) + 1)
         self.bu_weights_normalized = self.bu_weights * self.normalizer
+
+        self.normalizer = 1 / (torch.sum(self.bu_weights, dim=0, keepdim=True) + 1)
+        self.bu_weights_normalized = self.bu_weights * self.normalizer
+
+    def extra_repr(self):
+        """Get some additional information about this module.
+
+        Returns
+        -------
+        out : str
+            Some extra information about this module.
+        """
+        return f"n_in={self.n_in}, n_units={self.n_units}"
 
 
 class InputLayer(nn.Module):
@@ -281,6 +298,16 @@ class InputLayer(nn.Module):
     def release_clamp(self):
         """Release any clamped state from the units."""
         self.clamped = False
+
+    def extra_repr(self):
+        """Get some additional information about this module.
+
+        Returns
+        -------
+        out : str
+            Some extra information about this module.
+        """
+        return f"n_units={self.n_units}"
 
 
 class OutputLayer(nn.Module):
@@ -407,18 +434,33 @@ class OutputLayer(nn.Module):
         """Release any clamped state from the units."""
         self.clamped = False
 
-    def train_weights(self, bu_err):
+    def train_weights(self, bu_err, lr=0.01):
         """Perform a training step, updating the weights.
 
         Parameters
         ----------
         bu_err : tensor (batch_size, n_in)
             The bottom-up error computed in the previous layer.
+        lr : float
+            The learning rate.
         """
-        self.td_weights.set_(
-            torch.maximum(self.eps_2, self.td_weights)
-            * ((self.state.T @ bu_err) / self.state.sum(axis=0, keepdims=True).T)
-        )
-        self.bu_weights.set_(self.td_weights.T)
-        self.normalizer = 1 / (torch.sum(self.bu_weights, dim=0, keepdim=True) + 1)
+        delta = self.state.T @ (bu_err - 1)
+        delta /= torch.maximum(self.eps_2, self.state.sum(axis=0, keepdims=True)).T
+        delta = 1 + lr * delta
+
+        td_weights = torch.clamp(self.td_weights * delta, 0, 1)
+        self.td_weights.set_(td_weights)
+        self.bu_weights.set_(td_weights.T)
+
+        self.normalizer = 1 / torch.sum(self.bu_weights, dim=0, keepdim=True)
         self.bu_weights_normalized = self.bu_weights * self.normalizer
+
+    def extra_repr(self):
+        """Get some additional information about this module.
+
+        Returns
+        -------
+        out : str
+            Some extra information about this module.
+        """
+        return f"n_in={self.n_in}, n_units={self.n_units}"
