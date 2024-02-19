@@ -123,7 +123,8 @@ class MiddleLayer(nn.Module):
                 (bu_err @ self.bu_weights_normalized) + (self.normalizer * self.td_err)
             )
         self.bu_err = self.state / torch.maximum(self.eps_1, self.reconstruction)
-        self.td_err = self.reconstruction / torch.maximum(self.eps_1, self.state)
+        if not self.training:
+            self.td_err = self.reconstruction / torch.maximum(self.eps_1, self.state)
         return self.bu_err
 
     def backward(self, reconstruction):
