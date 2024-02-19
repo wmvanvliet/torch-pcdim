@@ -86,7 +86,7 @@ parser.add_argument(
 parser.add_argument(
     "--lr",
     type=float,
-    default=0.01,
+    default=0.001,
     metavar="LR",
     help="initial learning rate (default: 0.01)",
 )
@@ -96,13 +96,6 @@ parser.add_argument(
     default=10,
     metavar="LR",
     help="step down learning rate after this amount of epochs (default: 10)",
-)
-parser.add_argument(
-    "--log-interval",
-    type=int,
-    default=10,
-    metavar="N",
-    help="how many batches to wait before logging training status",
 )
 parser.add_argument(
     "--no-cuda", action="store_true", default=False, help="disables CUDA training"
@@ -144,8 +137,8 @@ lr = args.lr
 for epoch in range(args.epochs):
     if epoch % args.step_down == 0:
         lr /= 10
-    train(args, model, device, train_loader, epoch, n_iter=100, freq=10, lr=lr)
-    test(model, device, test_loader, n_iter=20)
+    train(args, model, device, train_loader, epoch, n_iter=100, freq=5, lr=lr)
+    test(model, device, test_loader, n_iter=50)
 
 # Save trained model
 checkpoint = dict(args.__dict__)
