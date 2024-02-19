@@ -137,7 +137,7 @@ lr = args.lr
 for epoch in range(args.epochs):
     if epoch % args.step_down == 0:
         lr /= 10
-    train(args, model, device, train_loader, epoch, n_iter=100, freq=5, lr=lr)
+    train(args, model, device, train_loader, epoch, n_iter=50, freq=10, lr=lr)
     test(model, device, test_loader, n_iter=50)
 
 # Save trained model

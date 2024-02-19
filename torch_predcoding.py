@@ -143,7 +143,7 @@ class MiddleLayer(nn.Module):
         """
         self.reconstruction = reconstruction
         # return self.state @ self.td_weights
-        return self.state @ (self.td_weights / self.td_weights.max(axis=1, keepdim=True)[0])
+        return self.state @ (self.td_weights / self.td_weights.max(axis=0, keepdim=True)[0])
 
     def clamp(self, state):
         """Clamp the units to a predefined state.
@@ -416,7 +416,8 @@ class OutputLayer(nn.Module):
             Whether the normalize the top-down weights before computing the
             reconstruction. This is done in Samer et al. 2023.
         """
-        return self.state @ (self.td_weights / self.td_weights.max(axis=1, keepdim=True)[0])
+        # return self.state @ self.td_weights
+        return self.state @ (self.td_weights / self.td_weights.max(axis=0, keepdim=True)[0])
 
     def clamp(self, state):
         """Clamp the units to a predefined state.
