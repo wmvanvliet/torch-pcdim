@@ -82,7 +82,7 @@ class MiddleLayer(nn.Module):
             "td_weights", nn.Parameter(td_weights, requires_grad=False)
         )
 
-        normalizer = 1 / (torch.sum(bu_weights, dim=0, keepdim=True) + 1)
+        normalizer = 1 / (torch.sum(bu_weights, dim=0, keepdim=True))
         self.register_buffer("normalizer", normalizer)
         self.register_buffer("bu_weights_normalized", bu_weights * normalizer)
 
@@ -120,7 +120,7 @@ class MiddleLayer(nn.Module):
         """
         if not self.clamped:
             self.state = torch.maximum(self.eps_2, self.state) * (
-                (bu_err @ self.bu_weights_normalized) + (self.normalizer * self.td_err)
+                (bu_err @ self.bu_weights) # + (self.normalizer * self.td_err)
             )
         self.bu_err = self.state / torch.maximum(self.eps_1, self.reconstruction)
         self.td_err = self.reconstruction / torch.maximum(self.eps_1, self.state)
@@ -142,7 +142,8 @@ class MiddleLayer(nn.Module):
             that needs to be back-propagated.
         """
         self.reconstruction = reconstruction
-        return self.state @ self.td_weights
+        # return self.state @ self.td_weights
+        return self.state @ (self.td_weights / self.td_weights.max(axis=1, keepdim=True)[0])
 
     def clamp(self, state):
         """Clamp the units to a predefined state.
@@ -399,7 +400,7 @@ class OutputLayer(nn.Module):
         """
         if not self.clamped:
             self.state = torch.maximum(self.eps_2, self.state) * (
-                bu_err @ self.bu_weights_normalized
+                bu_err @ self.bu_weights
             )
         return self.state
 
@@ -415,7 +416,7 @@ class OutputLayer(nn.Module):
             Whether the normalize the top-down weights before computing the
             reconstruction. This is done in Samer et al. 2023.
         """
-        return self.state @ self.td_weights
+        return self.state @ (self.td_weights / self.td_weights.max(axis=1, keepdim=True)[0])
 
     def clamp(self, state):
         """Clamp the units to a predefined state.

@@ -135,8 +135,8 @@ test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
 model = PCModel(
     [
         InputLayer(n_units=28 * 28, batch_size=args.batch_size),
-        MiddleLayer(n_in=28 * 28, n_units=5000, batch_size=args.batch_size),
-        OutputLayer(n_in=5000, n_units=10, batch_size=args.batch_size),
+        MiddleLayer(n_in=28 * 28, n_units=500, batch_size=args.batch_size),
+        OutputLayer(n_in=500, n_units=10, batch_size=args.batch_size),
     ]
 ).to(device)
 
@@ -156,7 +156,7 @@ torch.save(checkpoint, "data/MNIST/trained_model.pkl")
 model.reset(batch_size=10)
 model.release_clamp()
 target = (
-    F.one_hot(torch.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), 10).float().to(device) * 30
+    F.one_hot(torch.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), 10).float().to(device) * 7
 )
 model.clamp(input_data=None, output_data=target)
 recons = []
