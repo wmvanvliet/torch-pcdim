@@ -65,9 +65,9 @@ parser = argparse.ArgumentParser(description="PyTorch predictive coding MNIST Ex
 parser.add_argument(
     "--batch-size",
     type=int,
-    default=512,
+    default=1,
     metavar="N",
-    help="input batch size for training (default: 512)",
+    help="input batch size for training (default: 1)",
 )
 parser.add_argument(
     "--test-batch-size",
@@ -79,23 +79,23 @@ parser.add_argument(
 parser.add_argument(
     "--epochs",
     type=int,
-    default=30,
+    default=50,
     metavar="N",
-    help="number of epochs to train (default: 30)",
+    help="number of epochs to train (default: 50)",
 )
 parser.add_argument(
     "--lr",
     type=float,
-    default=0.01,
+    default=0.1,
     metavar="LR",
-    help="initial learning rate (default: 0.01)",
+    help="initial learning rate (default: 0.1)",
 )
 parser.add_argument(
     "--step-down",
     type=int,
-    default=10,
+    default=50,
     metavar="LR",
-    help="step down learning rate after this amount of epochs (default: 10)",
+    help="step down learning rate after this amount of epochs (default: 50)",
 )
 parser.add_argument(
     "--log-interval",
@@ -135,8 +135,8 @@ test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
 model = PCModel(
     [
         InputLayer(n_units=28 * 28, batch_size=args.batch_size),
-        MiddleLayer(n_in=28 * 28, n_units=500, batch_size=args.batch_size),
-        OutputLayer(n_in=500, n_units=10, batch_size=args.batch_size),
+        MiddleLayer(n_in=28 * 28, n_units=5000, batch_size=args.batch_size),
+        OutputLayer(n_in=5000, n_units=10, batch_size=args.batch_size),
     ]
 ).to(device)
 
@@ -144,8 +144,8 @@ lr = args.lr
 for epoch in range(args.epochs):
     if epoch % args.step_down == 0:
         lr /= 10
-    train(args, model, device, train_loader, epoch, n_iter=100, freq=10, lr=lr)
-    test(model, device, test_loader, n_iter=20)
+    train(args, model, device, train_loader, epoch, n_iter=50, freq=50, lr=lr)
+    test(model, device, test_loader, n_iter=50)
 
 # Save trained model
 checkpoint = dict(args.__dict__)
