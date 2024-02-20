@@ -156,7 +156,7 @@ torch.save(checkpoint, "data/MNIST/trained_model.pkl")
 model.reset(batch_size=10)
 model.release_clamp()
 target = (
-    F.one_hot(torch.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), 10).float().to(device) * 30
+    F.one_hot(torch.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), 10).float().to(device) * 9
 )
 model.clamp(input_data=None, output_data=target)
 recons = []
