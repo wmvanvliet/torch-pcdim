@@ -53,6 +53,7 @@ class PCModel(nn.Module):
         assert isinstance(layers[-1], OutputLayer)
 
         self.layers = layers
+        self.eval()  # we're not learning weights
 
     def clamp(self, input_data=None, output_data=None):
         """Clamp input/output units unto a given state.
