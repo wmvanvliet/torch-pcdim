@@ -6,8 +6,8 @@ import torch.nn.functional as F
 from torchvision import datasets, transforms
 from tqdm import tqdm
 
-from torch_model import PCModel
-from torch_predcoding import InputLayer, MiddleLayer, OutputLayer
+from torch_pcdim.models import PCModel
+from torch_pcdim.layers import InputLayer, MiddleLayer, OutputLayer
 
 
 def train(args, model, device, train_loader, epoch, n_iter=20, freq=5, lr=0.01):
@@ -135,8 +135,8 @@ test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
 model = PCModel(
     [
         InputLayer(n_units=28 * 28, batch_size=args.batch_size),
-        MiddleLayer(n_in=28 * 28, n_units=5000, batch_size=args.batch_size),
-        OutputLayer(n_in=5000, n_units=10, batch_size=args.batch_size),
+        MiddleLayer(n_in=28 * 28, n_units=1024, batch_size=args.batch_size),
+        OutputLayer(n_in=1024, n_units=10, batch_size=args.batch_size),
     ]
 ).to(device)
 

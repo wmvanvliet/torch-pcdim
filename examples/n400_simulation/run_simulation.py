@@ -12,11 +12,11 @@ import torch
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-from torch_model import N400Model  # GPU model
-from weights_nour_eddine_2023 import get_weights
+from n400_model import N400Model  # GPU model
+from weights import get_weights
 
 # Make sure to set this to where you've downloaded Samer's data package to.
-data_path = "./helper_txt_files"
+data_path = "./data"
 
 # You can play with these to run more or fewer simulation steps
 n_pre_iterations = 2
