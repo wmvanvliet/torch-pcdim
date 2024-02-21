@@ -1,19 +1,16 @@
-"""
-Train the predictive coding model on the CPU, run the simulations, plot the results.
-"""
+"""Train the predictive coding model, run the simulations, plot the results."""
 
+import datetime
 from copy import deepcopy
 
 import numpy as np
 from matplotlib import pyplot as plt
 from tqdm import tqdm
-import datetime
 
 from model import PCModel  # CPU model
-from weights_nour_eddine_2023 import get_weights
+from weights import get_weights
 
-# Make sure to set this to where you've downloaded Samer's data package to.
-data_path = "./helper_txt_files"
+data_path = "../n400_simulation/data"
 
 # You can play with these to run more or fewer simulation steps
 n_pre_iterations = 2
@@ -21,14 +18,13 @@ n_iterations = 20
 training_interval = 10
 training_n_iterations = 100
 batch_size = 512  # set how many inputs to test on.
-training_batch_size = 1579  # set how many inputs to train on. I initially used 10 for debugging purposes
+training_batch_size = 1579  # set how many inputs to train on.
 
 weights = get_weights(data_path)
 
 # These weights are initialized randomly and will be learned through training
 weights.W_orth_lex = np.random.rand(*weights.W_orth_lex.shape) * 0.1
 weights.V_lex_orth = weights.W_orth_lex.T.copy()
-
 
 
 # Instantiate the model
@@ -41,26 +37,35 @@ with open(f"{data_path}/1579words_words.txt") as f:
 training_batch = lex[:training_batch_size]
 input_batch = lex[:batch_size]
 
-'''
-Preactivate the model using the control (dummy) units,
-so that the model is biased to use particular lexical units to reconstruct each orthographic input
-e.g. this enables the R-O-B-E orthographic units to activate the third lexical state unit, which is already linked to <robe> semantic features.
-Without this constraint, R-O-B-E will learn to activate a random lexical unit (or a small set of them) that is very unlikely to be linked to <robe> features.
-Conceptually, this is analogous to learning "what's the word for X?", where the semantics of X are already known (e.g. a cup), and it is known that there is some word for it.
-'''
+"""
+Preactivate the model using the control (dummy) units, so that the model is biased to
+use particular lexical units to reconstruct each orthographic input e.g. this enables
+the R-O-B-E orthographic units to activate the third lexical state unit, which is
+already linked to <robe> semantic features.  Without this constraint, R-O-B-E will learn
+to activate a random lexical unit (or a small set of them) that is very unlikely to be
+linked to <robe> features.  Conceptually, this is analogous to learning "what's the word
+for X?", where the semantics of X are already known (e.g. a cup), and it is known that
+there is some word for it.
+"""
 for n in tqdm(range(n_iterations), unit="step"):
     m(clamp_orth=None, clamp_ctx=training_batch, cloze_prob=0.99)
 
 # Train the model on all inputs
 for n in tqdm(range(training_n_iterations), unit="step"):
-    # clamping both ctx and orth during training further biases the model to activate particular lexical units in response to particular orthographic inputs, as described above
-    m(clamp_orth=training_batch, clamp_ctx=training_batch, train_weights=n % training_interval == 0)
+    # Clamping both ctx and orth during training further biases the model to activate
+    # particular lexical units in response to particular orthographic inputs, as
+    # described above.
+    m(
+        clamp_orth=training_batch,
+        clamp_ctx=training_batch,
+        train_weights=n % training_interval == 0,
+    )
 m.reset(batch_size)  # update batch size
 trained_model = deepcopy(m)  # designate as the "standard" initialized model
 
 # Save the trained model
 current_datetime = datetime.datetime.now().strftime("%m%d%y")
-with open( f'./helper_txt_files/trained_V_{current_datetime}.npy','wb') as f:
+with open(f"./helper_txt_files/trained_V_{current_datetime}.npy", "wb") as f:
     np.save(f, m.weights.V_lex_orth)
 
 # Load the trained model
