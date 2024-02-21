@@ -1,5 +1,5 @@
-A Predictive Coding Model of the N400 
--------------------------------------
+A PyToch implementation of the DIM predictive coding model
+----------------------------------------------------------
 
 This repositoy contains my replication of:
 
@@ -12,10 +12,13 @@ In addition, there is a new PyTorch GPU implementation of the model in the form 
 
 Installation
 ------------
-This package depends on `numpy`, `torch` and `matplotlib`
+This package depends on `numpy`, `torch` and `matplotlib`. You probably want to install
+these yourself to ensure speedy versions of these compatible with your system.
+
+Next, clone this repository somewhere and install with: `pip install -e .`.
 
 Running
 -------
-* To reproduce Figures 5 and 6A of the original paper: `torch_simulation.py`
-* To run a reference implementation of the N400 model: `simulation.py`
-* To classify the MNIST dataset: `torch_mnist.py`
+* To reproduce Figures 5 and 6A of the original paper: `examples/n400_simulation/run_simulation.py`
+* To run a reference implementation of the N400 model: `examples/n400_simulation_numpy/run_simulation.py`
+* To classify the MNIST dataset: `examples/mnist/mnist.py`
