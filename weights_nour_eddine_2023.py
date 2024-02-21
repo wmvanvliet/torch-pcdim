@@ -92,11 +92,8 @@ def get_weights(data_path):
     V_sem_lex = W_lex_sem.T
     V_lex_orth = W_orth_lex.T
 
-    # Apply frequency balancing to feedback weights
+    # Frequency information
     freq = np.loadtxt(f"{data_path}/1579words_freq_values.txt")
-    V_lex_orth = (V_lex_orth + freq[None, :]) * (V_lex_orth > 0)
-    V_sem_lex = (V_sem_lex + freq[:, None]) * (V_sem_lex > 0)
-    V_ctx_sem = (V_ctx_sem + freq[None, :]) * (V_ctx_sem > 0)
 
     return Weights(
         orth_units=orth_units,
