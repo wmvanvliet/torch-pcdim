@@ -8,7 +8,7 @@ https://doi.org/10.1101/2023.04.10.536279.
 """
 import numpy as np
 
-from weights_nour_eddine_2023 import get_lex_repr, get_orth_repr
+from weights import get_lex_repr, get_orth_repr
 
 # These constants control the sensitivity of the model. Currently set to the values
 # given in Nour Eddine et al. (2023).

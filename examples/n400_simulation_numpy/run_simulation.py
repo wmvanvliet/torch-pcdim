@@ -14,10 +14,9 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm
 
 from model import PCModel  # CPU model
-from weights_nour_eddine_2023 import get_weights
+from weights import get_weights
 
-# Make sure to set this to where you've downloaded Samer's data package to.
-data_path = "./helper_txt_files"
+data_path = "../n400_simulation/data"
 
 # You can play with these to run more or fewer simulation steps
 n_pre_iterations = 2

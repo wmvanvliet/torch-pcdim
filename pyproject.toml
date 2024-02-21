@@ -1,0 +1,43 @@
+[project]
+name = "torch-pcdim"
+dynamic = ["version"]
+authors = [
+  { name="Marijn van Vliet", email="w.m.vanvliet@gmail.com" },
+  { name="Samer Nour Eddine", email="samer.nour_eddine@tufts.edu" },
+]
+description = "A PyTorch implementation of PC-DIM style predictive coding models"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: BSD-3-clause License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+	"numpy",
+	"torch",
+	"matplotlib"
+]
+
+[project.urls]
+Homepage = "https://github.com/wmvanvliet/torch-pcdim"
+Issues = "https://github.com/wmvanvliet/torch-pcdim/issues"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["torch_pcdim"]
+
+[tool.setuptools.dynamic]
+version = {attr = "torch_pcdim.__version__"}
+
+[tool.ruff]
+exclude = ["__init__.py"]
+select = ["D", "E", "F"]
+ignore = [
+	"D100", # Missing docstring in public module
+    "D107", # Missing docstring in public package
+	"D204", # Need blank line after docstring
+]
