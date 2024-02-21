@@ -1,7 +1,7 @@
 """Torch modules to perform predictive coding.
 
-A model can be assembled by stacking an ``InputLayer``, as many ``PCLayer``s as needed
-(can be zero) and finally an ``OutputLayer``.
+A model can be assembled by stacking an ``InputLayer``, as many ``MiddleLayer``s as
+needed (can be zero) and finally an ``OutputLayer``.
 
 These module define both a ``forward`` and ``backward`` method. First, the ``forward``
 methods should be called in sequence, followed by calling all the ``backward`` methods
