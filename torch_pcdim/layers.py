@@ -7,6 +7,7 @@ These module define both a ``forward`` and ``backward`` method. First, the ``for
 methods should be called in sequence, followed by calling all the ``backward`` methods
 in reverse sequence.
 """
+
 import torch
 from torch import nn
 
@@ -32,11 +33,12 @@ class MiddleLayer(nn.Module):
     td_weights : tensor (n_in, n_units) | None
         The weight matrix used to back-propagate the prediction to the previous layer.
         When not specified, a randomly initiated matrix will be used.
-    eps_1 : float
-        Minimum error (bottom-up or top-down) for a unit. Should be a small
-        positive number.
-    eps_2 : float
-        Minimum activation of a unit. Should be a small positive number.
+    bottom_up : float
+        Amount of bottom-up activity to use to compute the next state of the units.
+        Should be 0 <= bottom_up <= top_down <= 1
+    top_down : float
+        Amount of top-down activity to use to compute the next state of the units.
+        Should be 0 <= bottom_up <= top_down <= 1
     """
 
     def __init__(
@@ -46,21 +48,19 @@ class MiddleLayer(nn.Module):
         batch_size=1,
         bu_weights=None,
         td_weights=None,
-        eps_1=0.01,
-        eps_2=0.0001,
+        bottom_up=0.1,
+        top_down=0,
     ):
         super().__init__()
         self.n_units = n_units
         self.n_in = n_in
         self.batch_size = batch_size
+        self.bottom_up = bottom_up
+        self.top_down = top_down
 
         self.clamped = False  # see the clamp() method
 
-        self.register_buffer("eps_1", torch.as_tensor(eps_1))
-        self.register_buffer("eps_2", torch.as_tensor(eps_2))
-        self.register_buffer(
-            "state", (1 / self.n_units) * torch.ones((self.batch_size, self.n_units))
-        )
+        self.register_buffer("state", torch.zeros((self.batch_size, self.n_units)))
         self.register_buffer(
             "reconstruction",
             (1 / self.n_units) * torch.ones((self.batch_size, self.n_units)),
@@ -70,21 +70,17 @@ class MiddleLayer(nn.Module):
 
         # Optionally initialize the weight matrices
         if bu_weights is None:
-            bu_weights = torch.rand(n_in, n_units) * 0.1
+            bu_weights = torch.randn(n_in, n_units) * 0.1
         if td_weights is None:
-            td_weights = torch.rand(n_units, n_in) * 0.1
+            td_weights = torch.randn(n_units, n_in) * 0.1
         assert bu_weights.shape == (n_in, n_units)
         assert td_weights.shape == (n_units, n_in)
         self.register_parameter(
-            "bu_weights", nn.Parameter(bu_weights, requires_grad=False)
-        )
-        self.register_parameter(
             "td_weights", nn.Parameter(td_weights, requires_grad=False)
         )
-
-        normalizer = 1 / (torch.sum(bu_weights, dim=0, keepdim=True) + 1)
-        self.register_buffer("normalizer", normalizer)
-        self.register_buffer("bu_weights_normalized", bu_weights * normalizer)
+        self.register_parameter(
+            "bu_weights", nn.Parameter(td_weights.clone().T, requires_grad=False)
+        )
 
     def reset(self, batch_size=None):
         """Set the values of the units to their initial state.
@@ -97,10 +93,8 @@ class MiddleLayer(nn.Module):
         if batch_size is not None:
             self.batch_size = batch_size
         device = self.state.device
-        self.state = (1 / self.n_units) * torch.ones((self.batch_size, self.n_units))
-        self.reconstruction = (1 / self.n_units) * torch.ones(
-            (self.batch_size, self.n_units)
-        )
+        self.state = torch.zeros((self.batch_size, self.n_units))
+        self.reconstruction = torch.zeros((self.batch_size, self.n_units))
         self.td_err = torch.zeros((self.batch_size, self.n_units))
         self.bu_err = torch.zeros((self.batch_size, self.n_units))
         self.to(device)
@@ -119,11 +113,13 @@ class MiddleLayer(nn.Module):
             The bottom-up error that needs to propagate to the next layer.
         """
         if not self.clamped:
-            self.state = torch.maximum(self.eps_2, self.state) * (
-                (bu_err @ self.bu_weights_normalized) + (self.normalizer * self.td_err)
+            self.state = (
+                self.state
+                + self.bottom_up * bu_err @ self.bu_weights
+                + self.top_down * self.td_err
             )
-        self.bu_err = self.state / torch.maximum(self.eps_1, self.reconstruction)
-        self.td_err = self.reconstruction / torch.maximum(self.eps_1, self.state)
+        self.bu_err = self.state - self.reconstruction
+        self.td_err = self.reconstruction - self.state
         return self.bu_err
 
     def backward(self, reconstruction):
@@ -169,16 +165,10 @@ class MiddleLayer(nn.Module):
         lr : float
             The learning rate.
         """
-        delta = self.state.T @ bu_err
-        delta /= torch.maximum(self.eps_2, self.state.sum(axis=0, keepdims=True)).T
-        delta = 1 + lr * (delta - 1)
-
-        td_weights = torch.clamp(self.td_weights * delta, 0, 1)
+        delta = lr * (self.state.T @ bu_err)
+        td_weights = self.td_weights + delta
         self.td_weights.set_(td_weights)
         self.bu_weights.set_(self.td_weights.T)
-
-        self.normalizer = 1 / (torch.sum(self.bu_weights, dim=0, keepdim=True) + 1)
-        self.bu_weights_normalized = self.bu_weights * self.normalizer
 
     def extra_repr(self):
         """Get some additional information about this module.
@@ -202,32 +192,25 @@ class InputLayer(nn.Module):
         How many units in this layer.
     batch_size : int
         The number of inputs we compute per batch.
-    eps_1 : float
-        Minimum error (bottom-up or top-down) for a unit. Should be a small
-        positive number.
-    eps_2 : float
-        Minimum activation of a unit. Should be a small positive number.
+    top_down : float
+        The amoun of influence of top-down error on the current state of the units.
+        Should be: 0 <= top_down <= 1
     """
 
-    def __init__(
-        self, n_units, batch_size=1, bu_weights=None, eps_1=0.01, eps_2=0.0001
-    ):
+    def __init__(self, n_units, batch_size=1, bu_weights=None, top_down=0.5):
         super().__init__()
         self.n_units = n_units
         self.batch_size = batch_size
+        self.top_down = top_down
 
         self.clamped = False  # see the clamp() method
 
-        self.register_buffer(
-            "state", (1 / self.n_units) * torch.ones((self.batch_size, self.n_units))
-        )
+        self.register_buffer("state", torch.zeros((self.batch_size, self.n_units)))
         self.register_buffer(
             "reconstruction",
-            (1 / self.n_units) * torch.ones((self.batch_size, self.n_units)),
+            torch.zeros((self.batch_size, self.n_units)),
         )
         self.register_buffer("td_err", torch.zeros((self.batch_size, self.n_units)))
-        self.register_buffer("eps_1", torch.as_tensor(eps_1))
-        self.register_buffer("eps_2", torch.as_tensor(eps_2))
 
     def reset(self, batch_size=None):
         """Set the values of the units to their initial state.
@@ -240,10 +223,8 @@ class InputLayer(nn.Module):
         if batch_size is not None:
             self.batch_size = batch_size
         device = self.state.device
-        self.state = (1 / self.n_units) * torch.ones((self.batch_size, self.n_units))
-        self.reconstruction = (1 / self.n_units) * torch.ones(
-            (self.batch_size, self.n_units)
-        )
+        self.state = torch.zeros((self.batch_size, self.n_units))
+        self.reconstruction = torch.zeros((self.batch_size, self.n_units))
         self.td_err = torch.zeros((self.batch_size, self.n_units))
         self.to(device)
 
@@ -267,9 +248,9 @@ class InputLayer(nn.Module):
             if x is not None:
                 self.state = x
             else:
-                self.state = torch.maximum(self.eps_2, self.state) * self.td_err
-        self.td_err = self.reconstruction / torch.maximum(self.eps_1, self.state)
-        return self.state / torch.maximum(self.eps_1, self.reconstruction)
+                self.state = self.state + self.top_down * self.td_err
+        self.td_err = self.reconstruction - self.state
+        return self.state - self.reconstruction
 
     def backward(self, reconstruction):
         """Take in a reconstruction for use in the next iteration.
@@ -327,8 +308,9 @@ class OutputLayer(nn.Module):
     td_weights : tensor (n_in, n_units) | None
         The weight matrix used to back-propagate the prediction to the previous layer.
         When not specified, a randomly initiated matrix will be used.
-    eps_2 : float
-        Minimum activation of a unit. Should be a small positive number.
+    bottom_up : float
+        The amoun of influence of buttom-up error on the current state of the units.
+        Should be: 0 <= bottom_up <= 1
     """
 
     def __init__(
@@ -338,19 +320,17 @@ class OutputLayer(nn.Module):
         batch_size=1,
         bu_weights=None,
         td_weights=None,
-        eps_2=0.0001,
+        bottom_up=0.1,
     ):
         super().__init__()
         self.n_in = n_in
         self.n_units = n_units
         self.batch_size = batch_size
+        self.bottom_up = bottom_up
 
         self.clamped = False  # see the clamp() method
 
-        self.register_buffer("eps_2", torch.as_tensor(eps_2))
-        self.register_buffer(
-            "state", (1 / self.n_units) * torch.ones((self.batch_size, self.n_units))
-        )
+        self.register_buffer("state", torch.zeros((self.batch_size, self.n_units)))
 
         # Optionally initialize the weight matrices
         if bu_weights is None:
@@ -360,15 +340,11 @@ class OutputLayer(nn.Module):
         assert bu_weights.shape == (n_in, n_units)
         assert td_weights.shape == (n_units, n_in)
         self.register_parameter(
-            "bu_weights", nn.Parameter(bu_weights, requires_grad=False)
-        )
-        self.register_parameter(
             "td_weights", nn.Parameter(td_weights, requires_grad=False)
         )
-
-        normalizer = 1 / (torch.sum(bu_weights, dim=0, keepdim=True) + 1)
-        self.register_buffer("normalizer", normalizer)
-        self.register_buffer("bu_weights_normalized", bu_weights * normalizer)
+        self.register_parameter(
+            "bu_weights", nn.Parameter(td_weights.clone().T, requires_grad=False)
+        )
 
     def reset(self, batch_size=None):
         """Set the values of the units to their initial state.
@@ -381,7 +357,7 @@ class OutputLayer(nn.Module):
         if batch_size is not None:
             self.batch_size = batch_size
         device = self.state.device
-        self.state = (1 / self.n_units) * torch.ones((self.batch_size, self.n_units))
+        self.state = torch.zeros((self.batch_size, self.n_units))
         self.to(device)
 
     def forward(self, bu_err):
@@ -398,12 +374,10 @@ class OutputLayer(nn.Module):
             The new state of the units in this layer. This is the output of the model.
         """
         if not self.clamped:
-            self.state = torch.maximum(self.eps_2, self.state) * (
-                bu_err @ self.bu_weights_normalized
-            )
+            self.state = self.state + self.bottom_up * (bu_err @ self.bu_weights)
         return self.state
 
-    def backward(self, normalize=False):
+    def backward(self):
         """Back-propagate the reconstruction.
 
         Returns
@@ -411,9 +385,6 @@ class OutputLayer(nn.Module):
         reconstruction : tensor (n_in, batch_size)
             The reconstruction of the state of the units in the previous layer
             that needs to be back-propagated.
-        normalize : bool
-            Whether the normalize the top-down weights before computing the
-            reconstruction. This is done in Samer et al. 2023.
         """
         return self.state @ self.td_weights
 
@@ -442,16 +413,10 @@ class OutputLayer(nn.Module):
         lr : float
             The learning rate.
         """
-        delta = self.state.T @ bu_err
-        delta /= torch.maximum(self.eps_2, self.state.sum(axis=0, keepdims=True)).T
-        delta = 1 + lr * (delta - 1)
-
-        td_weights = torch.clamp(self.td_weights * delta, 0, 1)
+        delta = lr * (self.state.T @ bu_err)
+        td_weights = self.td_weights + delta
         self.td_weights.set_(td_weights)
         self.bu_weights.set_(td_weights.T)
-
-        self.normalizer = 1 / torch.sum(self.bu_weights, dim=0, keepdim=True)
-        self.bu_weights_normalized = self.bu_weights * self.normalizer
 
     def extra_repr(self):
         """Get some additional information about this module.
