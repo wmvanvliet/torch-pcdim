@@ -48,8 +48,8 @@ class MiddleLayer(nn.Module):
         batch_size=1,
         bu_weights=None,
         td_weights=None,
-        bottom_up=0.1,
-        top_down=0,
+        bottom_up=0.01,
+        top_down=0.01,
     ):
         super().__init__()
         self.n_units = n_units
@@ -320,7 +320,7 @@ class OutputLayer(nn.Module):
         batch_size=1,
         bu_weights=None,
         td_weights=None,
-        bottom_up=0.1,
+        bottom_up=0.01,
     ):
         super().__init__()
         self.n_in = n_in

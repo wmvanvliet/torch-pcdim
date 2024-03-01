@@ -86,9 +86,9 @@ parser.add_argument(
 parser.add_argument(
     "--lr",
     type=float,
-    default=0.01,
+    default=0.001,
     metavar="LR",
-    help="initial learning rate (default: 0.01)",
+    help="initial learning rate (default: 0.001)",
 )
 parser.add_argument(
     "--step-down",
