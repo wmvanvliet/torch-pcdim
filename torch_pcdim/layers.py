@@ -119,9 +119,8 @@ class MiddleLayer(nn.Module):
             The bottom-up error that needs to propagate to the next layer.
         """
         if not self.clamped:
-            self.state = torch.maximum(self.eps_2, self.state) * (
-                (bu_err @ self.bu_weights_normalized) + (self.normalizer * self.td_err)
-            )
+            self.pred_err = bu_err @ self.bu_weights_normalized + self.normalizer * self.td_err
+            self.state = torch.maximum(self.eps_2, self.state) * self.pred_err
         self.bu_err = self.state / torch.maximum(self.eps_1, self.reconstruction)
         self.td_err = self.reconstruction / torch.maximum(self.eps_1, self.state)
         return self.bu_err
@@ -268,6 +267,7 @@ class InputLayer(nn.Module):
                 self.state = x
             else:
                 self.state = torch.maximum(self.eps_2, self.state) * self.td_err
+        self.pred_err = self.td_err
         self.td_err = self.reconstruction / torch.maximum(self.eps_1, self.state)
         return self.state / torch.maximum(self.eps_1, self.reconstruction)
 
@@ -398,9 +398,8 @@ class OutputLayer(nn.Module):
             The new state of the units in this layer. This is the output of the model.
         """
         if not self.clamped:
-            self.state = torch.maximum(self.eps_2, self.state) * (
-                bu_err @ self.bu_weights_normalized
-            )
+            self.pred_err = bu_err @ self.bu_weights_normalized
+            self.state = torch.maximum(self.eps_2, self.state) * self.pred_err
         return self.state
 
     def backward(self, normalize=False):
