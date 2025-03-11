@@ -244,6 +244,7 @@ class InputLayer(nn.Module):
             (self.batch_size, self.n_units)
         )
         self.td_err = torch.zeros((self.batch_size, self.n_units))
+        self.bu_err = torch.zeros((self.batch_size, self.n_units))
         self.to(device)
 
     def forward(self, x=None):
@@ -269,7 +270,8 @@ class InputLayer(nn.Module):
                 self.state = torch.maximum(self.eps_2, self.state) * self.td_err
         self.pred_err = self.td_err
         self.td_err = self.reconstruction / torch.maximum(self.eps_1, self.state)
-        return self.state / torch.maximum(self.eps_1, self.reconstruction)
+        self.bu_err = self.state / torch.maximum(self.eps_1, self.reconstruction)
+        return self.bu_err
 
     def backward(self, reconstruction):
         """Take in a reconstruction for use in the next iteration.

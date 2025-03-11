@@ -173,7 +173,9 @@ for i in range(100):
         output = model(data.view(-1, 28 * 28))
         e = []
         for l in model.layers:
-            if hasattr(l, "pred_err"):
+            if hasattr(l, "bu_err"):
+                e.append((l.bu_err).mean().detach().item())
+            elif hasattr(l, "pred_err"):
                 e.append((l.pred_err).mean().detach().item())
         errs.append(e)
 errs = np.array(errs).T
